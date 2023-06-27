@@ -4,6 +4,8 @@
 #include <NetworkSettings.h>
 #include <map>
 #include <time.h>
+#include "PowerMeter.h"
+#include "Configuration.h"
 
 std::map<DisplayType_t, std::function<U8G2*(uint8_t, uint8_t, uint8_t, uint8_t)>> display_types = {
     { DisplayType_t::PCD8544, [](uint8_t reset, uint8_t clock, uint8_t data, uint8_t cs) { return new U8G2_PCD8544_84X48_F_4W_HW_SPI(U8G2_R0, cs, data, reset); } },
@@ -26,6 +28,8 @@ const uint8_t languages[] = {
 static const char* const i18n_offline[] = { "Offline", "Offline", "Offline" };
 static const char* const i18n_current_power_w[] = { "%3.0f W", "%3.0f W", "%3.0f W" };
 static const char* const i18n_current_power_kw[] = { "%2.1f kW", "%2.1f kW", "%2.1f kW" };
+static const char* const i18n_meter_power_w[] = { "G: %3.0f W", "G: %3.0f W", "G: %3.0f W" };
+static const char* const i18n_meter_power_kw[] = { "G: %2.1f kW", "G: %2.1f kW", "G: %2.1f kW" };
 static const char* const i18n_yield_today_wh[] = { "today: %4.0f Wh", "Heute: %4.0f Wh", "auj.: %4.0f Wh" };
 static const char* const i18n_yield_total_kwh[] = { "total: %.1f kWh", "Ges.: %.1f kWh", "total: %.1f kWh" };
 static const char* const i18n_date_format[] = { "%m/%d/%Y %H:%M", "%d.%m.%Y %H:%M", "%d/%m/%Y %H:%M" };
@@ -138,16 +142,31 @@ void DisplayGraphicClass::loop()
 
     if ((millis() - _lastDisplayUpdate) > _period) {
 
+        CONFIG_T& config = Configuration.get();
+
         _display->clearBuffer();
 
         //=====> Actual Production ==========
         if (Datastore.getIsAtLeastOneReachable()) {
             _display->setPowerSave(false);
-            if (Datastore.getTotalAcPowerEnabled() > 999) {
-                snprintf(_fmtText, sizeof(_fmtText), i18n_current_power_kw[_display_language], (Datastore.getTotalAcPowerEnabled() / 1000));
+
+            float acPower = Datastore.getTotalAcPowerEnabled();
+            if (acPower > 999) {
+                snprintf(_fmtText, sizeof(_fmtText), i18n_current_power_kw[_display_language], (acPower / 1000));
             } else {
-                snprintf(_fmtText, sizeof(_fmtText), i18n_current_power_w[_display_language], Datastore.getTotalAcPowerEnabled());
+                snprintf(_fmtText, sizeof(_fmtText), i18n_current_power_w[_display_language], acPower);
             }
+
+            // if power meter is enabled, show the power meter value every 5 seconds for 5 seconds
+            if(config.PowerMeter_Enabled && (millis() / 1000) % 10 >= 5) {
+                acPower = PowerMeter.getPowerTotal(false);
+                if (acPower > 999) {
+                    snprintf(_fmtText, sizeof(_fmtText), i18n_meter_power_kw[_display_language], (acPower / 1000));
+                } else {
+                    snprintf(_fmtText, sizeof(_fmtText), i18n_meter_power_w[_display_language], acPower);
+                }
+            }
+
             printText(_fmtText, 0);
             _previousMillis = millis();
         }
