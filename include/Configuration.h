@@ -31,6 +31,8 @@
 
 #define POWERMETER_MAX_PHASES 3
 #define POWERMETER_MAX_HTTP_URL_STRLEN 1024
+#define POWERMETER_MAX_USERNAME_STRLEN 64
+#define POWERMETER_MAX_PASSWORD_STRLEN 64
 #define POWERMETER_MAX_HTTP_HEADER_KEY_STRLEN 64
 #define POWERMETER_MAX_HTTP_HEADER_VALUE_STRLEN 256
 #define POWERMETER_MAX_HTTP_JSON_PATH_STRLEN 256
@@ -55,9 +57,13 @@ struct INVERTER_CONFIG_T {
     CHANNEL_CONFIG_T channel[INV_MAX_CHAN_COUNT];
 };
 
+enum Auth { none, basic, digest };
 struct POWERMETER_HTTP_PHASE_CONFIG_T {
     bool Enabled;
     char Url[POWERMETER_MAX_HTTP_URL_STRLEN + 1];
+    Auth AuthType;
+    char Username[POWERMETER_MAX_USERNAME_STRLEN +1];
+    char Password[POWERMETER_MAX_USERNAME_STRLEN +1];
     char HeaderKey[POWERMETER_MAX_HTTP_HEADER_KEY_STRLEN + 1];
     char HeaderValue[POWERMETER_MAX_HTTP_HEADER_VALUE_STRLEN + 1];
     uint16_t Timeout;
@@ -116,7 +122,6 @@ struct CONFIG_T {
 
     bool Vedirect_Enabled;
     bool Vedirect_UpdatesOnly;
-    uint32_t Vedirect_PollInterval;
 
     char Mqtt_Hostname[MQTT_MAX_HOSTNAME_STRLEN + 1];
 
@@ -157,6 +162,11 @@ struct CONFIG_T {
 
     bool Battery_Enabled;
     bool Huawei_Enabled;
+    bool Huawei_Auto_Power_Enabled;
+    float Huawei_Auto_Power_Voltage_Limit;
+    float Huawei_Auto_Power_Enable_Voltage_Limit;
+    float Huawei_Auto_Power_Lower_Power_Limit;
+    float Huawei_Auto_Power_Upper_Power_Limit;   
 
     char Security_Password[WIFI_MAX_PASSWORD_STRLEN + 1];
     bool Security_AllowReadonly;

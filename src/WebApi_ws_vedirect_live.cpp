@@ -78,7 +78,7 @@ void WebApiWsVedirectLiveClass::loop()
             }
 
         } catch (std::bad_alloc& bad_alloc) {
-            MessageOutput.printf("Call to /api/vedirectlivedata/status temporarely out of resources. Reason: \"%s\".\r\n", bad_alloc.what());
+            MessageOutput.printf("Calling /api/vedirectlivedata/status has temporarily run out of resources. Reason: \"%s\".\r\n", bad_alloc.what());
         }
 
         _lastWsPublish = millis();
@@ -145,7 +145,7 @@ void WebApiWsVedirectLiveClass::generateJsonResponse(JsonVariant& root)
     root["dpl"]["PLSTATE"] = -1;
     if (Configuration.get().PowerLimiter_Enabled)
         root["dpl"]["PLSTATE"] = PowerLimiter.getPowerLimiterState();
-    root["dpl"]["PLLIMIT"] = PowerLimiter.getLastRequestedPowewrLimit();
+    root["dpl"]["PLLIMIT"] = PowerLimiter.getLastRequestedPowerLimit();
 
     if (VeDirect.getLastUpdate() > _newestVedirectTimestamp) {
         _newestVedirectTimestamp = VeDirect.getLastUpdate();
@@ -182,7 +182,7 @@ void WebApiWsVedirectLiveClass::onLivedataStatus(AsyncWebServerRequest* request)
         request->send(response);
 
     } catch (std::bad_alloc& bad_alloc) {
-        MessageOutput.printf("Call to /api/livedata/status temporarely out of resources. Reason: \"%s\".\r\n", bad_alloc.what());
+        MessageOutput.printf("Calling /api/livedata/status has temporarily run out of resources. Reason: \"%s\".\r\n", bad_alloc.what());
 
         WebApi.sendTooManyRequests(request);
     }

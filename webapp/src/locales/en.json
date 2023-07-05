@@ -9,7 +9,7 @@
         "SecuritySettings": "Security",
         "DTUSettings": "DTU",
         "DeviceManager": "Device-Manager",
-        "VedirectSettings": "Ve.direct",
+        "VedirectSettings": "VE.Direct",
         "PowerMeterSettings": "Power Meter",
         "BatterySettings": "Battery",
         "AcChargerSettings": "AC Charger",
@@ -22,7 +22,7 @@
         "NTP": "NTP",
         "MQTT": "MQTT",
         "Console": "Console",
-        "Vedirect": "Ve.direct",
+        "Vedirect": "VE.Direct",
         "About": "About",
         "Logout": "Logout",
         "Login": "Login"
@@ -318,12 +318,12 @@
         "Disconnected": "disconnected"
     },
     "vedirectinfo": {
-        "VedirectInformation" : "Ve.direct Info",
+        "VedirectInformation" : "VE.Direct Info",
         "ConfigurationSummary": "@:ntpinfo.ConfigurationSummary",
         "Status": "@:ntpinfo.Status",
         "Enabled": "@:mqttinfo.Enabled",
         "Disabled": "@:mqttinfo.Disabled",
-        "UpdatesOnly": "Send updates only",
+        "UpdatesOnly": "@:vedirectadmin.UpdatesOnly",
         "UpdatesEnabled": "@:mqttinfo.Enabled",
         "UpdatesDisabled": "@:mqttinfo.Disabled"
     },
@@ -485,13 +485,12 @@
         "Save": "@:dtuadmin.Save"
     },
     "vedirectadmin": {
-        "VedirectSettings": "Ve.direct Settings",
-        "VedirectConfiguration": "Ve.direct Configuration",
-        "EnableVedirect": "Enable Ve.direct",
-        "VedirectParameter": "Ve.direct Parameter",
-        "PublishInterval": "Publish Interval:",
+        "VedirectSettings": "VE.Direct Settings",
+        "VedirectConfiguration": "VE.Direct Configuration",
+        "EnableVedirect": "Enable VE.Direct",
+        "VedirectParameter": "VE.Direct Parameter",
         "Seconds": "seconds",
-        "UpdatesOnly": "Send only updates:",
+        "UpdatesOnly": "Publish values to MQTT only when they change",
         "Save": "@:dtuadmin.Save"
     },
     "powermeteradmin":{
@@ -519,6 +518,9 @@
         "httpEnabled": "Phase enabled",
         "httpUrl": "URL",
         "httpUrlDescription": "URL must start with http:// or https://. Some characters like spaces and = have to be encoded with URL encoding (%xx). Warning: SSL server certificate check is not implemented (MITM attacks are possible)! See below for some examples.",
+        "httpAuthorization": "Authorization Type",
+        "httpUsername": "Username",
+        "httpPassword": "Password",
         "httpHeaderKey": "Optional: HTTP request header - Key",
         "httpHeaderKeyDescription": "A custom HTTP request header can be defined. Might be useful if you have to send something like a custom Authorization header.",
         "httpHeaderValue": "Optional: HTTP request header - Value",
@@ -738,6 +740,13 @@
         "ChargerSettings": "AC Charger Settings",
         "Configuration": "AC Charger Configuration",
         "EnableHuawei": "Enable Huawei R4850G2 on CAN Bus Interface",
+        "EnableAutoPower": "Automatic power control",
+        "Limits": "Limits",
+        "VoltageLimit": "Charge Voltage limit",
+        "enableVoltageLimit": "Re-enable voltage limit",
+        "enableVoltageLimitHint": "Automatic power control is disabled if the output voltage is higher then this value and if the output power drops below the minimum output power limit (set below).\nAutomatic power control is re-enabled if the battery voltage drops below the value set in this field.",
+        "lowerPowerLimit": "Minimum output power",
+        "upperPowerLimit": "Maximum output power",
         "Seconds": "@:dtuadmin.Seconds",
         "Save": "@:dtuadmin.Save"
       },

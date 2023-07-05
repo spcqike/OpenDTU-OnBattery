@@ -121,7 +121,6 @@ bool ConfigurationClass::write()
     JsonObject vedirect = doc.createNestedObject("vedirect");
     vedirect["enabled"] = config.Vedirect_Enabled;
     vedirect["updates_only"] = config.Vedirect_UpdatesOnly;
-    vedirect["poll_interval"] = config.Vedirect_PollInterval;
 
     JsonObject powermeter = doc.createNestedObject("powermeter");
     powermeter["enabled"] = config.PowerMeter_Enabled;
@@ -140,6 +139,9 @@ bool ConfigurationClass::write()
 
         powermeter_phase["enabled"] = config.Powermeter_Http_Phase[i].Enabled;
         powermeter_phase["url"] = config.Powermeter_Http_Phase[i].Url;
+        powermeter_phase["auth_type"] = config.Powermeter_Http_Phase[i].AuthType;
+        powermeter_phase["username"] = config.Powermeter_Http_Phase[i].Username;
+        powermeter_phase["password"] = config.Powermeter_Http_Phase[i].Password;
         powermeter_phase["header_key"] = config.Powermeter_Http_Phase[i].HeaderKey;
         powermeter_phase["header_value"] = config.Powermeter_Http_Phase[i].HeaderValue;
         powermeter_phase["timeout"] = config.Powermeter_Http_Phase[i].Timeout;
@@ -173,6 +175,11 @@ bool ConfigurationClass::write()
 
     JsonObject huawei = doc.createNestedObject("huawei");
     huawei["enabled"] = config.Huawei_Enabled;
+    huawei["auto_power_enabled"] = config.Huawei_Auto_Power_Enabled;
+    huawei["voltage_limit"] = config.Huawei_Auto_Power_Voltage_Limit;
+    huawei["enable_voltage_limit"] = config.Huawei_Auto_Power_Enable_Voltage_Limit;
+    huawei["lower_power_limit"] = config.Huawei_Auto_Power_Lower_Power_Limit;
+    huawei["upper_power_limit"] = config.Huawei_Auto_Power_Upper_Power_Limit;
 
     // Serialize JSON to file
     if (serializeJson(doc, f) == 0) {
@@ -322,7 +329,6 @@ bool ConfigurationClass::read()
     JsonObject vedirect = doc["vedirect"];
     config.Vedirect_Enabled = vedirect["enabled"] | VEDIRECT_ENABLED;
     config.Vedirect_UpdatesOnly = vedirect["updates_only"] | VEDIRECT_UPDATESONLY;
-    config.Vedirect_PollInterval = vedirect["poll_interval"] | VEDIRECT_POLL_INTERVAL;
 
     JsonObject powermeter = doc["powermeter"];
     config.PowerMeter_Enabled = powermeter["enabled"] | POWERMETER_ENABLED;
@@ -341,6 +347,9 @@ bool ConfigurationClass::read()
 
         config.Powermeter_Http_Phase[i].Enabled = powermeter_phase["enabled"] | (i == 0);
         strlcpy(config.Powermeter_Http_Phase[i].Url, powermeter_phase["url"] | "", sizeof(config.Powermeter_Http_Phase[i].Url));
+        config.Powermeter_Http_Phase[i].AuthType = powermeter_phase["auth_type"] | Auth::none;
+        strlcpy(config.Powermeter_Http_Phase[i].Username, powermeter_phase["username"] | "", sizeof(config.Powermeter_Http_Phase[i].Username));
+        strlcpy(config.Powermeter_Http_Phase[i].Password, powermeter_phase["password"] | "", sizeof(config.Powermeter_Http_Phase[i].Password));
         strlcpy(config.Powermeter_Http_Phase[i].HeaderKey, powermeter_phase["header_key"] | "", sizeof(config.Powermeter_Http_Phase[i].HeaderKey));
         strlcpy(config.Powermeter_Http_Phase[i].HeaderValue, powermeter_phase["header_value"] | "", sizeof(config.Powermeter_Http_Phase[i].HeaderValue));
         config.Powermeter_Http_Phase[i].Timeout = powermeter_phase["timeout"] | POWERMETER_HTTP_TIMEOUT;
@@ -374,6 +383,11 @@ bool ConfigurationClass::read()
 
     JsonObject huawei = doc["huawei"];
     config.Huawei_Enabled = huawei["enabled"] | HUAWEI_ENABLED;
+    config.Huawei_Auto_Power_Enabled = huawei["auto_power_enabled"] | false;
+    config.Huawei_Auto_Power_Voltage_Limit = huawei["voltage_limit"] | HUAWEI_AUTO_POWER_VOLTAGE_LIMIT;
+    config.Huawei_Auto_Power_Enable_Voltage_Limit =  huawei["enable_voltage_limit"] | HUAWEI_AUTO_POWER_ENABLE_VOLTAGE_LIMIT;
+    config.Huawei_Auto_Power_Lower_Power_Limit = huawei["lower_power_limit"] | HUAWEI_AUTO_POWER_LOWER_POWER_LIMIT;
+    config.Huawei_Auto_Power_Upper_Power_Limit = huawei["upper_power_limit"] | HUAWEI_AUTO_POWER_UPPER_POWER_LIMIT;
 
     f.close();
     return true;
