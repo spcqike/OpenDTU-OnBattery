@@ -44,7 +44,6 @@ public:
         NoVeDirect,
         Settling,
         Stable,
-        LowerLimitUndercut
     };
 
     void init();
@@ -57,7 +56,7 @@ public:
 
 private:
     int32_t _lastRequestedPowerLimit = 0;
-    bool _shutdownInProgress;
+    uint32_t _shutdownTimeout = 0;
     Status _lastStatus = Status::Initializing;
     uint32_t _lastStatusPrinted = 0;
     uint32_t _lastCalculation = 0;
@@ -69,10 +68,12 @@ private:
     uint32_t _nextInverterRestart = 0; // Values: 0->not calculated / 1->no restart configured / >1->time of next inverter restart in millis()
     uint32_t _nextCalculateCheck = 5000; // time in millis for next NTP check to calulate restart
     bool _fullSolarPassThroughEnabled = false;
+    bool _verboseLogging = true;
 
     std::string const& getStatusText(Status status);
     void announceStatus(Status status);
-    void shutdown(Status status);
+    bool shutdown(Status status);
+    bool shutdown() { return shutdown(_lastStatus); }
     int32_t inverterPowerDcToAc(std::shared_ptr<InverterAbstract> inverter, int32_t dcPower);
     void unconditionalSolarPassthrough(std::shared_ptr<InverterAbstract> inverter);
     bool canUseDirectSolarPower();

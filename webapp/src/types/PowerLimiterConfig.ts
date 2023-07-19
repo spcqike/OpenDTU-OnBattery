@@ -1,6 +1,8 @@
 export interface PowerLimiterConfig {
     enabled: boolean;
+    verbose_logging: boolean;
     solar_passthrough_enabled: boolean;
+    solar_passthrough_losses: number;
     battery_drain_strategy: number;
     is_inverter_behind_powermeter: boolean;
     inverter_id: number;

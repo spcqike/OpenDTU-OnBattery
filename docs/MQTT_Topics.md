@@ -132,6 +132,7 @@ cmd topics are used to set values. Status topics are updated from values set in 
 | battery/settings/dischargeCurrentLimitation | R | BMS requested max. discharge current                 | Ampere (A)                 |
 | battery/stateOfCharge                   | R     | State of Health                                      | %                          |
 | battery/stateOfHealth                   | R     | State of Charge                                      | %                          |
+| battery/dataAge                         | R     | How old the data is                                  | Seconds                    |
 | battery/voltage                         | R     | Actual voltage                                       | Volt (V)                   |
 | battery/current                         | R     | Actual current                                       | Ampere (A)                 |
 | battery/temperature"                    | R     | Actual temperature                                   | °C                         |
@@ -141,6 +142,7 @@ cmd topics are used to set values. Status topics are updated from values set in 
 | battery/alarm/underVoltage              | R     | Alarm: Low voltage                                   | 0 / 1                      |
 | battery/alarm/overVoltage               | R     | Alarm: High voltage                                  | 0 / 1                      |
 | battery/alarm/bmsInternal               | R     | Alarm: BMS internal                                  | 0 / 1                      |
+| battery/alarm/overCurrentCharge         | R     |                                                      |                            |
 | battery/warning/highCurrentDischarge    | R     | Warning: High discharge current                      | 0 / 1                      |
 | battery/warning/lowTemperature          | R     | Warning: Low temperature                             | 0 / 1                      |
 | battery/warning/highTemperature         | R     | Warning: High temperature                            | 0 / 1                      |
@@ -158,6 +160,8 @@ cmd topics are used to set values. Status topics are updated from values set in 
 | --------------------------------------- | ----- | ---------------------------------------------------- | -------------------------- |
 | huawei/cmd/limit_online_voltage         | W     | Online voltage (i.e. CAN bus connected)              | Volt (V)                   |
 | huawei/cmd/limit_online_current         | W     | Online current (i.e. CAN bus connected)              | Ampere (A)                 |
+| huawei/cmd/limit_offline_voltage        | W     | Offline voltage (i.e. CAN bus not connected)         | Volt (V)                   |
+| huawei/cmd/limit_offline_current        | W     | Offline current (i.e. CAN bus not connected)         | Ampere (A)                 |
 | huawei/cmd/mode                         | W     | Controls GPIO output pin to switch slot detect       | 0 (off) / 1 (on) / 2 (set automatically depending on online_current value) / 3 (set automatically based on Power Meter reading ) |
 | huawei/data_age                         | R     | How old the data is                                  | Seconds                    |
 | huawei/input_voltage                    | R     | Input voltage                                        | Volt (V)                   |
