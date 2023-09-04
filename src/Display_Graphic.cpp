@@ -159,11 +159,10 @@ void DisplayGraphicClass::loop()
 
             // if power meter is enabled, show the power meter value every 5 seconds for 5 seconds
             if(config.PowerMeter_Enabled && (millis() / 1000) % 10 >= 5) {
-                acPower = PowerMeter.getPowerTotal(false);
-                if (acPower > 999) {
-                    snprintf(_fmtText, sizeof(_fmtText), i18n_meter_power_kw[_display_language], (acPower / 1000));
+                if (PowerMeter.getPowerTotal(false) > 999) {
+                    snprintf(_fmtText, sizeof(_fmtText), i18n_meter_power_kw[_display_language], (PowerMeter.getPowerTotal(false) / 1000));
                 } else {
-                    snprintf(_fmtText, sizeof(_fmtText), i18n_meter_power_w[_display_language], acPower);
+                    snprintf(_fmtText, sizeof(_fmtText), i18n_meter_power_w[_display_language], PowerMeter.getPowerTotal(false));
                 }
             }
 
