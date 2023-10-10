@@ -2,23 +2,23 @@
  *
  * Arduino library to read from Victron devices using VE.Direct protocol.
  * Derived from Victron framehandler reference implementation.
- * 
+ *
  * The MIT License
- * 
+ *
  * Copyright (c) 2019 Victron Energy BV
  * Portions Copyright (C) 2020 Chris Terwilliger
  * https://github.com/cterwilliger/VeDirectFrameHandler
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in
  * all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -26,72 +26,115 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *  
+ *
  * 2020.05.05 - 0.2 - initial release
  * 2020.06.21 - 0.2 - add MIT license, no code changes
  * 2020.08.20 - 0.3 - corrected #include reference
- * 
+ *
  */
- 
+
 #include <Arduino.h>
 #include "VeDirectFrameHandler.h"
-
-char MODULE[] = "VE.Frame";	// Victron seems to use this to find out where logging messages were generated
 
 // The name of the record that contains the checksum.
 static constexpr char checksumTagName[] = "CHECKSUM";
 
 // state machine
-enum States {                               
-	IDLE,
-	RECORD_BEGIN,
-	RECORD_NAME,
-	RECORD_VALUE,
-	CHECKSUM,
-	RECORD_HEX
+enum States {
+	IDLE = 1,
+	RECORD_BEGIN = 2,
+	RECORD_NAME = 3,
+	RECORD_VALUE = 4,
+	CHECKSUM = 5,
+	RECORD_HEX = 6
 };
 
-HardwareSerial VedirectSerial(1);
 
-VeDirectFrameHandler VeDirect;
+
+class Silent : public Print {
+	public:
+		size_t write(uint8_t c) final { return 0; }
+};
+
+static Silent MessageOutputDummy;
 
 VeDirectFrameHandler::VeDirectFrameHandler() :
-	//mStop(false),	// don't know what Victron uses this for, not using
+	_msgOut(&MessageOutputDummy),
+	_lastUpdate(0),
 	_state(IDLE),
 	_checksum(0),
 	_textPointer(0),
 	_hexSize(0),
 	_name(""),
 	_value(""),
-	_tmpFrame(),
-	_lastUpdate(0)
+	_debugIn(0),
+	_lastByteMillis(0)
 {
 }
 
-void VeDirectFrameHandler::init(int8_t rx, int8_t tx)
+void VeDirectFrameHandler::setVerboseLogging(bool verboseLogging)
 {
-    VedirectSerial.begin(19200, SERIAL_8N1, rx, tx);
-    VedirectSerial.flush();
+	_verboseLogging = verboseLogging;
+	if (!_verboseLogging) { _debugIn = 0; }
+}
+
+void VeDirectFrameHandler::init(int8_t rx, int8_t tx, Print* msgOut, bool verboseLogging, uint16_t hwSerialPort)
+{
+	_vedirectSerial = std::make_unique<HardwareSerial>(hwSerialPort);
+	_vedirectSerial->begin(19200, SERIAL_8N1, rx, tx);
+	_vedirectSerial->flush();
+	_msgOut = msgOut;
+	setVerboseLogging(verboseLogging);
+}
+
+void VeDirectFrameHandler::dumpDebugBuffer() {
+	_msgOut->printf("[VE.Direct] serial input (%d Bytes):", _debugIn);
+	for (int i = 0; i < _debugIn; ++i) {
+		if (i % 16 == 0) {
+			_msgOut->printf("\r\n[VE.Direct]");
+		}
+		_msgOut->printf(" %02x", _debugBuffer[i]);
+	}
+	_msgOut->println("");
+	_debugIn = 0;
 }
 
 void VeDirectFrameHandler::loop()
 {
-	while ( VedirectSerial.available()) {
-		rxData(VedirectSerial.read());
+	while ( _vedirectSerial->available()) {
+		rxData(_vedirectSerial->read());
+		_lastByteMillis = millis();
+	}
+
+	// there will never be a large gap between two bytes of the same frame.
+	// if such a large gap is observed, reset the state machine so it tries
+	// to decode a new frame once more data arrives.
+	if (IDLE != _state && _lastByteMillis + 500 < millis()) {
+		_msgOut->printf("[VE.Direct] Resetting state machine (was %d) after timeout\r\n", _state);
+		if (_verboseLogging) { dumpDebugBuffer(); }
+		_checksum = 0;
+		_state = IDLE;
 	}
 }
 
 /*
- *	rxData
+ *  rxData
  *  This function is called by loop() which passes a byte of serial data
  *  Based on Victron's example code. But using String and Map instead of pointer and arrays
  */
 void VeDirectFrameHandler::rxData(uint8_t inbyte)
 {
-	//if (mStop) return;
+	if (_verboseLogging) {
+		_debugBuffer[_debugIn] = inbyte;
+		_debugIn = (_debugIn + 1) % _debugBuffer.size();
+		if (0 == _debugIn) {
+			_msgOut->println("[VE.Direct] ERROR: debug buffer overrun!");
+		}
+	}
+
 	if ( (inbyte == ':') && (_state != CHECKSUM) ) {
 		_prevState = _state; //hex frame can interrupt TEXT
-		_state = RECORD_HEX; 
+		_state = RECORD_HEX;
 		_hexSize = 0;
 	}
 	if (_state != RECORD_HEX) {
@@ -162,8 +205,10 @@ void VeDirectFrameHandler::rxData(uint8_t inbyte)
 	case CHECKSUM:
 	{
 		bool valid = _checksum == 0;
-		if (!valid)
-			logE(MODULE,"[CHECKSUM] Invalid frame");
+		if (!valid) {
+			_msgOut->printf("[VE.Direct] checksum 0x%02x != 0, invalid frame\r\n", _checksum);
+		}
+		if (_verboseLogging) { dumpDebugBuffer(); }
 		_checksum = 0;
 		_state = IDLE;
 		frameEndEvent(valid);
@@ -179,110 +224,29 @@ void VeDirectFrameHandler::rxData(uint8_t inbyte)
  * textRxEvent
  * This function is called every time a new name/value is successfully parsed.  It writes the values to the temporary buffer.
  */
-void VeDirectFrameHandler::textRxEvent(char * name, char * value) {
+void VeDirectFrameHandler::textRxEvent(char * name, char * value, veStruct& frame) {
 	if (strcmp(name, "PID") == 0) {
-		_tmpFrame.PID = strtol(value, nullptr, 0);
+		frame.PID = strtol(value, nullptr, 0);
 	}
 	else if (strcmp(name, "SER") == 0) {
-		strcpy(_tmpFrame.SER, value);
+		strcpy(frame.SER, value);
 	}
 	else if (strcmp(name, "FW") == 0) {
-		strcpy(_tmpFrame.FW, value);
-	}
-	else if (strcmp(name, "LOAD") == 0) {
-		if (strcmp(value, "ON") == 0)
-			_tmpFrame.LOAD = true;
-		else	
-			_tmpFrame.LOAD = false;
-	}
-	else if (strcmp(name, "CS") == 0) {
-		_tmpFrame.CS = atoi(value);
-	}
-	else if (strcmp(name, "ERR") == 0) {
-		_tmpFrame.ERR = atoi(value);
-	}
-	else if (strcmp(name, "OR") == 0) {
-		_tmpFrame.OR = strtol(value, nullptr, 0);
-	}
-	else if (strcmp(name, "MPPT") == 0) {
-		_tmpFrame.MPPT = atoi(value);
-	}
-	else if (strcmp(name, "HSDS") == 0) {
-		_tmpFrame.HSDS = atoi(value);
+		strcpy(frame.FW, value);
 	}
 	else if (strcmp(name, "V") == 0) {
-		_tmpFrame.V = round(atof(value) / 10.0) / 100.0;
+		frame.V = round(atof(value) / 10.0) / 100.0;
 	}
 	else if (strcmp(name, "I") == 0) {
-		_tmpFrame.I = round(atof(value) / 10.0) / 100.0;
+		frame.I = round(atof(value) / 10.0) / 100.0;
 	}
-	else if (strcmp(name, "VPV") == 0) {
-		_tmpFrame.VPV = round(atof(value) / 10.0) / 100.0;
-	}
-	else if (strcmp(name, "PPV") == 0) {
-		_tmpFrame.PPV = atoi(value);
-	}
-	else if (strcmp(name, "H19") == 0) {
-		_tmpFrame.H19 = atof(value) / 100.0;
-	}
-	else if (strcmp(name, "H20") == 0) {
-		_tmpFrame.H20 = atof(value) / 100.0;
-	}
-	else if (strcmp(name, "H21") == 0) {
-		_tmpFrame.H21 = atoi(value);
-	}
-	else if (strcmp(name, "H22") == 0) {
-		_tmpFrame.H22 = atof(value) / 100.0;
-	}
-	else if (strcmp(name, "H23") == 0) {
-		_tmpFrame.H23 = atoi(value);
-	}
-	
 }
 
 
-/*
- *	frameEndEvent
- *  This function is called at the end of the received frame.  If the checksum is valid, the temp buffer is read line by line.
- *  If the name exists in the public buffer, the new value is copied to the public buffer.	If not, a new name/value entry
- *  is created in the public buffer.
- */
-void VeDirectFrameHandler::frameEndEvent(bool valid) {
-	if ( valid ) {
-		_tmpFrame.P = _tmpFrame.V * _tmpFrame.I;
-
-		_tmpFrame.IPV = 0;
-		if ( _tmpFrame.VPV > 0) {
-			_tmpFrame.IPV = _tmpFrame.PPV / _tmpFrame.VPV;
-		}
-
-		_tmpFrame.E = 0;
-		if ( _tmpFrame.PPV > 0) {
-			_efficiency.addNumber(static_cast<double>(_tmpFrame.P * 100) / _tmpFrame.PPV);
-			_tmpFrame.E = _efficiency.getAverage();
-		}
-
-		veFrame = _tmpFrame;
-		_lastUpdate = millis();
-	}
-	_tmpFrame = {};
-}
 
 /*
- *	logE
- *  This function included for continuity and possible future use.	
- */
-void VeDirectFrameHandler::logE(const char * module, const char * error) {
-	Serial.print("MODULE: ");
-    Serial.println(module);
-    Serial.print("ERROR: ");
-    Serial.println(error);
-	return;
-}
-
-/*
- *	hexRxEvent
- *  This function records hex answers or async messages	
+ *  hexRxEvent
+ *  This function records hex answers or async messages
  */
 int VeDirectFrameHandler::hexRxEvent(uint8_t inbyte) {
 	int ret=RECORD_HEX; // default - continue recording until end of frame
@@ -292,24 +256,24 @@ int VeDirectFrameHandler::hexRxEvent(uint8_t inbyte) {
 		// restore previous state
 		ret=_prevState;
 		break;
-		
+
 	default:
 		_hexSize++;
 		if (_hexSize>=VE_MAX_HEX_LEN) { // oops -buffer overflow - something went wrong, we abort
-			logE(MODULE,"hexRx buffer overflow - aborting read");
+			_msgOut->println("[VE.Direct] hexRx buffer overflow - aborting read");
 			_hexSize=0;
 			ret=IDLE;
 		}
 	}
-	
+
 	return ret;
 }
 
-bool VeDirectFrameHandler::isDataValid() {
+bool VeDirectFrameHandler::isDataValid(veStruct frame) {
 	if (_lastUpdate == 0) {
 		return false;
 	}
-	if (strlen(veFrame.SER) == 0) {
+	if (strlen(frame.SER) == 0) {
 		return false;
 	}
 	return true;
@@ -317,7 +281,7 @@ bool VeDirectFrameHandler::isDataValid() {
 
 unsigned long VeDirectFrameHandler::getLastUpdate()
 {
-    return _lastUpdate;
+	return _lastUpdate;
 }
 
 /*
@@ -523,7 +487,7 @@ String VeDirectFrameHandler::getPidAsString(uint16_t pid)
 			break;
 		case 0XA110:
 			strPID =  "SmartSolar MPPT RS 450|100";
-			break; 
+			break;
 		case 0XA112:
 			strPID =  "BlueSolar MPPT VE.Can 250|70";
 			break;
@@ -539,53 +503,34 @@ String VeDirectFrameHandler::getPidAsString(uint16_t pid)
 		case 0XA116:
 			strPID =  "SmartSolar MPPT VE.Can 250|85 rev2";
 			break;
+		case 0xA381:
+			strPID =  "BMV-712 Smart";
+			break;
+		case 0xA382:
+			strPID =  "BMV-710H Smart";
+			break;
+		case 0xA383:
+			strPID =  "BMV-712 Smart Rev2";
+			break;
+		case 0xA389:
+			strPID =  "SmartShunt 500A/50mV";
+			break;
+		case 0xA38A:
+			strPID =  "SmartShunt 1000A/50mV";
+			break;
+		case 0xA38B:
+			strPID =  "SmartShunt 2000A/50mV";
+			break;
+		case 0xA3F0:
+			strPID =  "SmartShunt 2000A/50mV" ;
+			break;
 		default:
 			strPID = pid;
 	}
 	return strPID;
 }
 
-/*
- * getCsAsString
- * This function returns the state of operations (CS) as readable text.
- */
-String VeDirectFrameHandler::getCsAsString(uint8_t cs)
-{
-	String strCS ="";
 
-	switch(cs) {
-		case 0:
-			strCS =  "OFF";
-			break;
-		case 2:
-			strCS =  "Fault";
-			break;
-		case 3:
-			strCS =  "Bulk";
-			break;
-		case 4:
-			strCS =  "Absorbtion";
-			break;
-		case 5:
-			strCS =  "Float";
-			break;
-		case 7:
-			strCS =  "Equalize (manual)";
-			break;
-		case 245:
-			strCS =  "Starting-up";
-			break;
-		case 247:
-			strCS =  "Auto equalize / Recondition";
-			break;
-		case 252:
-			strCS =  "External Control";
-			break;
-		default:
-			strCS = cs;
-	}
-	return strCS;
-}
 
 /*
  * getErrAsString
@@ -660,73 +605,4 @@ String VeDirectFrameHandler::getErrAsString(uint8_t err)
 			strERR = err;
 	}
 	return strERR;
-}
-
-/*
- * getOrAsString
- * This function returns the off reason (OR) as readable text.
- */
-String VeDirectFrameHandler::getOrAsString(uint32_t offReason)
-{
-	String strOR ="";
-
-	switch(offReason) {
-		case 0x00000000:
-			strOR =  "Not off";
-			break;
-		case 0x00000001:
-			strOR =  "No input power";
-			break;
-		case 0x00000002:
-			strOR =  "Switched off (power switch)";
-			break;
-		case 0x00000004:
-			strOR =  "Switched off (device moderegister)";
-			break;
-		case 0x00000008:
-			strOR =  "Remote input";
-			break;
-		case 0x00000010:
-			strOR =  "Protection active";
-			break;
-		case 0x00000020:
-			strOR =  "Paygo";
-			break;
-		case 0x00000040:
-			strOR =  "BMS";
-			break;
-		case 0x00000080:
-			strOR =  "Engine shutdown detection";
-			break;
-		case 0x00000100:
-			strOR =  "Analysing input voltage";
-			break;
-		default:
-			strOR = offReason;
-	}
-	return strOR;
-}
-
-/*
- * getMpptAsString
- * This function returns the state of MPPT (MPPT) as readable text.
- */
-String VeDirectFrameHandler::getMpptAsString(uint8_t mppt)
-{
-	String strMPPT ="";
-
-	switch(mppt) {
-		case 0:
-			strMPPT =  "OFF";
-			break;
-		case 1:
-			strMPPT =  "Voltage or current limited";
-			break;
-		case 2:
-			strMPPT =  "MPP Tracker active";
-			break;
-		default:
-			strMPPT = mppt;
-	}
-	return strMPPT;
 }

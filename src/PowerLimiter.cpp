@@ -10,7 +10,7 @@
 #include "MqttSettings.h"
 #include "NetworkSettings.h"
 #include "Huawei_can.h"
-#include <VeDirectFrameHandler.h>
+#include <VeDirectMpptController.h>
 #include "MessageOutput.h"
 #include <ctime>
 #include <cmath>
@@ -284,10 +284,12 @@ void PowerLimiterClass::loop()
     }
 
     if (_verboseLogging) {
-        MessageOutput.printf("[DPL::loop] battery interface %s, SoC: %d %%, StartTH: %d %%, StopTH: %d %%, SoC age: %li ms\r\n",
-                (config.Battery_Enabled?"enabled":"disabled"), Battery.stateOfCharge,
-                config.PowerLimiter_BatterySocStartThreshold, config.PowerLimiter_BatterySocStopThreshold,
-                millis() - Battery.stateOfChargeLastUpdate);
+        MessageOutput.printf("[DPL::loop] battery interface %s, SoC: %d %%, StartTH: %d %%, StopTH: %d %%, SoC age: %d s\r\n",
+                (config.Battery_Enabled?"enabled":"disabled"),
+                Battery.getStats()->getSoC(),
+                config.PowerLimiter_BatterySocStartThreshold,
+                config.PowerLimiter_BatterySocStopThreshold,
+                Battery.getStats()->getSoCAgeSeconds());
 
         float dcVoltage = _inverter->Statistics()->getChannelFieldValue(TYPE_DC, (ChannelNum_t)config.PowerLimiter_InverterChannelId, FLD_UDC);
         MessageOutput.printf("[DPL::loop] dcVoltage: %.2f V, loadCorrectedVoltage: %.2f V, StartTH: %.2f V, StopTH: %.2f V\r\n",
@@ -341,7 +343,7 @@ int32_t PowerLimiterClass::inverterPowerDcToAc(std::shared_ptr<InverterAbstract>
     CONFIG_T& config = Configuration.get();
 
     float inverterEfficiencyPercent = inverter->Statistics()->getChannelFieldValue(
-        TYPE_AC, static_cast<ChannelNum_t>(config.PowerLimiter_InverterChannelId), FLD_EFF);
+        TYPE_AC, CH0, FLD_EFF);
 
     // fall back to hoymiles peak efficiency as per datasheet if inverter
     // is currently not producing (efficiency is zero in that case)
@@ -364,12 +366,12 @@ void PowerLimiterClass::unconditionalSolarPassthrough(std::shared_ptr<InverterAb
 {
     CONFIG_T& config = Configuration.get();
 
-    if (!config.Vedirect_Enabled || !VeDirect.isDataValid()) {
+    if (!config.Vedirect_Enabled || !VeDirectMppt.isDataValid()) {
         shutdown(Status::NoVeDirect);
         return;
     }
 
-    int32_t solarPower = VeDirect.veFrame.V * VeDirect.veFrame.I;
+    int32_t solarPower = VeDirectMppt.veFrame.V * VeDirectMppt.veFrame.I;
     setNewPowerLimit(inverter, inverterPowerDcToAc(inverter, solarPower));
     announceStatus(Status::UnconditionalSolarPassthrough);
 }
@@ -405,11 +407,11 @@ bool PowerLimiterClass::canUseDirectSolarPower()
     if (!config.PowerLimiter_SolarPassThroughEnabled
             || isBelowStopThreshold()
             || !config.Vedirect_Enabled
-            || !VeDirect.isDataValid()) {
+            || !VeDirectMppt.isDataValid()) {
         return false;
     }
 
-    return VeDirect.veFrame.PPV >= 20; // enough power?
+    return VeDirectMppt.veFrame.PPV >= 20; // enough power?
 }
 
 
@@ -438,7 +440,7 @@ int32_t PowerLimiterClass::calcPowerLimit(std::shared_ptr<InverterAbstract> inve
         // the produced power of this inverter has also to be taken into account.
         // We don't use FLD_PAC from the statistics, because that
         // data might be too old and unreliable.
-        acPower = static_cast<int>(inverter->Statistics()->getChannelFieldValue(TYPE_AC, (ChannelNum_t) config.PowerLimiter_InverterChannelId, FLD_PAC)); 
+        acPower = static_cast<int>(inverter->Statistics()->getChannelFieldValue(TYPE_AC, CH0, FLD_PAC)); 
         newPowerLimit += acPower;
     }
 
@@ -494,6 +496,7 @@ void PowerLimiterClass::commitPowerLimit(std::shared_ptr<InverterAbstract> inver
             PowerLimitControlType::AbsolutNonPersistent);
 
     _lastRequestedPowerLimit = limit;
+    _lastPowerLimitMillis = millis();
 
     // enable power production only after setting the desired limit,
     // such that an older, greater limit will not cause power spikes.
@@ -544,17 +547,23 @@ bool PowerLimiterClass::setNewPowerLimit(std::shared_ptr<InverterAbstract> inver
 
     // Check if the new value is within the limits of the hysteresis
     auto diff = std::abs(effPowerLimit - _lastRequestedPowerLimit);
-    if ( diff < config.PowerLimiter_TargetPowerConsumptionHysteresis) {
+    auto hysteresis = config.PowerLimiter_TargetPowerConsumptionHysteresis;
+
+    // (re-)send power limit in case the last was sent a long time ago. avoids
+    // staleness in case a power limit update was not received by the inverter.
+    auto ageMillis = millis() - _lastPowerLimitMillis;
+
+    if (diff < hysteresis && ageMillis < 60 * 1000) {
         if (_verboseLogging) {
-            MessageOutput.printf("[DPL::setNewPowerLimit] reusing old limit: %d W, diff: %d W, hysteresis: %d W\r\n",
-                    _lastRequestedPowerLimit, diff, config.PowerLimiter_TargetPowerConsumptionHysteresis);
+            MessageOutput.printf("[DPL::setNewPowerLimit] requested: %d W, last limit: %d W, diff: %d W, hysteresis: %d W, age: %ld ms\r\n",
+                    newPowerLimit, _lastRequestedPowerLimit, diff, hysteresis, ageMillis);
         }
         return false;
     }
 
     if (_verboseLogging) {
-        MessageOutput.printf("[DPL::setNewPowerLimit] using new limit: %d W, requested power limit: %d W\r\n",
-                effPowerLimit, newPowerLimit);
+        MessageOutput.printf("[DPL::setNewPowerLimit] requested: %d W, (re-)sending limit: %d W\r\n",
+                newPowerLimit, effPowerLimit);
     }
 
     commitPowerLimit(inverter, effPowerLimit, true);
@@ -567,7 +576,7 @@ int32_t PowerLimiterClass::getSolarChargePower()
         return 0;
     }
 
-    return VeDirect.veFrame.V * VeDirect.veFrame.I;
+    return VeDirectMppt.veFrame.V * VeDirectMppt.veFrame.I;
 }
 
 float PowerLimiterClass::getLoadCorrectedVoltage()
@@ -581,7 +590,7 @@ float PowerLimiterClass::getLoadCorrectedVoltage()
     CONFIG_T& config = Configuration.get();
 
     auto channel = static_cast<ChannelNum_t>(config.PowerLimiter_InverterChannelId);
-    float acPower = _inverter->Statistics()->getChannelFieldValue(TYPE_AC, channel, FLD_PAC);
+    float acPower = _inverter->Statistics()->getChannelFieldValue(TYPE_AC, CH0, FLD_PAC);
     float dcVoltage = _inverter->Statistics()->getChannelFieldValue(TYPE_DC, channel, FLD_UDC);
 
     if (dcVoltage <= 0.0) {
@@ -598,8 +607,9 @@ bool PowerLimiterClass::testThreshold(float socThreshold, float voltThreshold,
 
     // prefer SoC provided through battery interface
     if (config.Battery_Enabled && socThreshold > 0.0
-            && (millis() - Battery.stateOfChargeLastUpdate) < 60000) {
-              return compare(Battery.stateOfCharge, socThreshold);
+            && Battery.getStats()->isValid()
+            && Battery.getStats()->getSoCAgeSeconds() < 60) {
+              return compare(Battery.getStats()->getSoC(), socThreshold);
     }
 
     // use voltage threshold as fallback

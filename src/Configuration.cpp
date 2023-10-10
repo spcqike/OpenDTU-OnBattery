@@ -59,6 +59,7 @@ bool ConfigurationClass::write()
     mqtt["topic"] = config.Mqtt_Topic;
     mqtt["retain"] = config.Mqtt_Retain;
     mqtt["publish_interval"] = config.Mqtt_PublishInterval;
+    mqtt["clean_session"] = config.Mqtt_CleanSession;
 
     JsonObject mqtt_lwt = mqtt.createNestedObject("lwt");
     mqtt_lwt["topic"] = config.Mqtt_LwtTopic;
@@ -111,6 +112,9 @@ bool ConfigurationClass::write()
         inv["poll_enable_night"] = config.Inverter[i].Poll_Enable_Night;
         inv["command_enable"] = config.Inverter[i].Command_Enable;
         inv["command_enable_night"] = config.Inverter[i].Command_Enable_Night;
+        inv["reachable_threshold"] = config.Inverter[i].ReachableThreshold;
+        inv["zero_runtime"] = config.Inverter[i].ZeroRuntimeDataIfUnrechable;
+        inv["zero_day"] = config.Inverter[i].ZeroYieldDayOnMidnight;
 
         JsonArray channel = inv.createNestedArray("channel");
         for (uint8_t c = 0; c < INV_MAX_CHAN_COUNT; c++) {
@@ -123,6 +127,7 @@ bool ConfigurationClass::write()
 
     JsonObject vedirect = doc.createNestedObject("vedirect");
     vedirect["enabled"] = config.Vedirect_Enabled;
+    vedirect["verbose_logging"] = config.Vedirect_VerboseLogging;
     vedirect["updates_only"] = config.Vedirect_UpdatesOnly;
 
     JsonObject powermeter = doc.createNestedObject("powermeter");
@@ -178,6 +183,10 @@ bool ConfigurationClass::write()
 
     JsonObject battery = doc.createNestedObject("battery");
     battery["enabled"] = config.Battery_Enabled;
+    battery["verbose_logging"] = config.Battery_VerboseLogging;
+    battery["provider"] = config.Battery_Provider;
+    battery["jkbms_interface"] = config.Battery_JkBmsInterface;
+    battery["jkbms_polling_interval"] = config.Battery_JkBmsPollingInterval;
 
     JsonObject huawei = doc.createNestedObject("huawei");
     huawei["enabled"] = config.Huawei_Enabled;
@@ -273,6 +282,7 @@ bool ConfigurationClass::read()
     strlcpy(config.Mqtt_Topic, mqtt["topic"] | MQTT_TOPIC, sizeof(config.Mqtt_Topic));
     config.Mqtt_Retain = mqtt["retain"] | MQTT_RETAIN;
     config.Mqtt_PublishInterval = mqtt["publish_interval"] | MQTT_PUBLISH_INTERVAL;
+    config.Mqtt_CleanSession = mqtt["clean_session"] | MQTT_CLEAN_SESSION;
 
     JsonObject mqtt_lwt = mqtt["lwt"];
     strlcpy(config.Mqtt_LwtTopic, mqtt_lwt["topic"] | MQTT_LWT_TOPIC, sizeof(config.Mqtt_LwtTopic));
@@ -326,6 +336,9 @@ bool ConfigurationClass::read()
         config.Inverter[i].Poll_Enable_Night = inv["poll_enable_night"] | true;
         config.Inverter[i].Command_Enable = inv["command_enable"] | true;
         config.Inverter[i].Command_Enable_Night = inv["command_enable_night"] | true;
+        config.Inverter[i].ReachableThreshold = inv["reachable_threshold"] | REACHABLE_THRESHOLD;
+        config.Inverter[i].ZeroRuntimeDataIfUnrechable = inv["zero_runtime"] | false;
+        config.Inverter[i].ZeroYieldDayOnMidnight = inv["zero_day"] | false;
 
         JsonArray channel = inv["channel"];
         for (uint8_t c = 0; c < INV_MAX_CHAN_COUNT; c++) {
@@ -337,6 +350,7 @@ bool ConfigurationClass::read()
 
     JsonObject vedirect = doc["vedirect"];
     config.Vedirect_Enabled = vedirect["enabled"] | VEDIRECT_ENABLED;
+    config.Vedirect_VerboseLogging = vedirect["verbose_logging"] | VEDIRECT_VERBOSE_LOGGING;
     config.Vedirect_UpdatesOnly = vedirect["updates_only"] | VEDIRECT_UPDATESONLY;
 
     JsonObject powermeter = doc["powermeter"];
@@ -392,6 +406,10 @@ bool ConfigurationClass::read()
 
     JsonObject battery = doc["battery"];
     config.Battery_Enabled = battery["enabled"] | BATTERY_ENABLED;
+    config.Battery_VerboseLogging = battery["verbose_logging"] | VERBOSE_LOGGING;
+    config.Battery_Provider = battery["provider"] | BATTERY_PROVIDER;
+    config.Battery_JkBmsInterface = battery["jkbms_interface"] | BATTERY_JKBMS_INTERFACE;
+    config.Battery_JkBmsPollingInterval = battery["jkbms_polling_interval"] | BATTERY_JKBMS_POLLING_INTERVAL;
 
     JsonObject huawei = doc["huawei"];
     config.Huawei_Enabled = huawei["enabled"] | HUAWEI_ENABLED;

@@ -10,7 +10,7 @@
 #include "Battery.h"
 #include "Huawei_can.h"
 #include "PowerMeter.h"
-#include "VeDirectFrameHandler.h"
+#include "VeDirectMpptController.h"
 #include "defaults.h"
 #include <AsyncJson.h>
 
@@ -66,6 +66,11 @@ void WebApiWsLiveClass::loop()
     if (millis() - _lastWsPublish > (10 * 1000) || (maxTimeStamp != _newestInverterTimestamp)) {
 
         try {
+            std::lock_guard<std::mutex> lock(_mutex);
+            DynamicJsonDocument root(4096 * INV_MAX_COUNT);
+            JsonVariant var = root;
+            generateJsonResponse(var);
+
             String buffer;
             // free JsonDocument as soon as possible
             {
@@ -152,6 +157,7 @@ void WebApiWsLiveClass::generateJsonResponse(JsonVariant& root)
                 addField(chanTypeObj, i, inv, t, c, FLD_EFF);
                 if (t == TYPE_DC && inv->Statistics()->getStringMaxPower(c) > 0) {
                     addField(chanTypeObj, i, inv, t, c, FLD_IRR);
+                    chanTypeObj[String(c)][inv->Statistics()->getChannelFieldName(t, c, FLD_IRR)]["max"] = inv->Statistics()->getStringMaxPower(c);
                 }
             }
         }
@@ -185,9 +191,9 @@ void WebApiWsLiveClass::generateJsonResponse(JsonVariant& root)
     JsonObject vedirectObj = root.createNestedObject("vedirect");
     vedirectObj[F("enabled")] = Configuration.get().Vedirect_Enabled;
     JsonObject totalVeObj = vedirectObj.createNestedObject("total");
-    addTotalField(totalVeObj, "Power", VeDirect.veFrame.PPV, "W", 1);
-    addTotalField(totalVeObj, "YieldDay", VeDirect.veFrame.H20 * 1000, "Wh", 0);
-    addTotalField(totalVeObj, "YieldTotal", VeDirect.veFrame.H19, "kWh", 2);
+    addTotalField(totalVeObj, "Power", VeDirectMppt.veFrame.PPV, "W", 1);
+    addTotalField(totalVeObj, "YieldDay", VeDirectMppt.veFrame.H20 * 1000, "Wh", 0);
+    addTotalField(totalVeObj, "YieldTotal", VeDirectMppt.veFrame.H19, "kWh", 2);
     
     JsonObject huaweiObj = root.createNestedObject("huawei");
     huaweiObj[F("enabled")] = Configuration.get().Huawei_Enabled;
@@ -196,7 +202,7 @@ void WebApiWsLiveClass::generateJsonResponse(JsonVariant& root)
     
     JsonObject batteryObj = root.createNestedObject("battery");
     batteryObj[F("enabled")] = Configuration.get().Battery_Enabled;
-    addTotalField(batteryObj, "soc", Battery.stateOfCharge, "%", 0);
+    addTotalField(batteryObj, "soc", Battery.getStats()->getSoC(), "%", 0);
 
     JsonObject powerMeterObj = root.createNestedObject("power_meter");
     powerMeterObj[F("enabled")] = Configuration.get().PowerMeter_Enabled;
@@ -231,13 +237,9 @@ void WebApiWsLiveClass::addTotalField(JsonObject& root, String name, float value
 void WebApiWsLiveClass::onWebsocketEvent(AsyncWebSocket* server, AsyncWebSocketClient* client, AwsEventType type, void* arg, uint8_t* data, size_t len)
 {
     if (type == WS_EVT_CONNECT) {
-        char str[64];
-        snprintf(str, sizeof(str), "Websocket: [%s][%u] connect", server->url(), client->id());
-        MessageOutput.println(str);
+        MessageOutput.printf("Websocket: [%s][%u] connect\r\n", server->url(), client->id());
     } else if (type == WS_EVT_DISCONNECT) {
-        char str[64];
-        snprintf(str, sizeof(str), "Websocket: [%s][%u] disconnect", server->url(), client->id());
-        MessageOutput.println(str);
+        MessageOutput.printf("Websocket: [%s][%u] disconnect\r\n", server->url(), client->id());
     }
 }
 
@@ -248,7 +250,8 @@ void WebApiWsLiveClass::onLivedataStatus(AsyncWebServerRequest* request)
     }
 
     try {
-        AsyncJsonResponse* response = new AsyncJsonResponse(false, 40960U);
+        std::lock_guard<std::mutex> lock(_mutex);
+        AsyncJsonResponse* response = new AsyncJsonResponse(false, 4096 * INV_MAX_COUNT);
         JsonVariant root = response->getRoot();
 
         generateJsonResponse(root);

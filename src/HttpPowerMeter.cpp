@@ -3,10 +3,11 @@
 #include "HttpPowerMeter.h"
 #include "MessageOutput.h"
 #include <WiFiClientSecure.h>
-#include <HTTPClient.h>
 #include <FirebaseJson.h>
 #include <Crypto.h>
 #include <SHA256.h>
+#include <base64.h>
+#include <memory>
 
 void HttpPowerMeterClass::init()
 {
@@ -23,41 +24,36 @@ bool HttpPowerMeterClass::updateValues()
 
     char response[2000],
         errorMessage[256];
-    bool success = true;
 
     for (uint8_t i = 0; i < POWERMETER_MAX_PHASES; i++) {
         POWERMETER_HTTP_PHASE_CONFIG_T phaseConfig = config.Powermeter_Http_Phase[i];
 
-        if (!phaseConfig.Enabled || !success) {
+        if (!phaseConfig.Enabled) {
             power[i] = 0.0;
-            continue;
-        }
+            continue;	
+        } 
 
         if (i == 0 || config.PowerMeter_HttpIndividualRequests) {
-            if (!httpRequest(phaseConfig.Url, phaseConfig.AuthType, phaseConfig.Username, phaseConfig.Password, phaseConfig.HeaderKey, phaseConfig.HeaderValue, phaseConfig.Timeout,
+            if (httpRequest(phaseConfig.Url, phaseConfig.AuthType, phaseConfig.Username, phaseConfig.Password, phaseConfig.HeaderKey, phaseConfig.HeaderValue, phaseConfig.Timeout,
                 response, sizeof(response), errorMessage, sizeof(errorMessage))) {
+                  if (!getFloatValueByJsonPath(response, phaseConfig.JsonPath, power[i])) {
+                      MessageOutput.printf("[HttpPowerMeter] Couldn't find a value with Json query \"%s\"\r\n", phaseConfig.JsonPath);
+                      return false;
+                  }
+            } else {
                 MessageOutput.printf("[HttpPowerMeter] Getting the power of phase %d failed. Error: %s\r\n",
                     i + 1, errorMessage);
-                success = false;
+                return false;
             }
-        }
-
-        if (!getFloatValueByJsonPath(response, phaseConfig.JsonPath, power[i])) {
-            MessageOutput.printf("[HttpPowerMeter] Couldn't find a value with Json query \"%s\"\r\n", phaseConfig.JsonPath);
-            success = false;
         }
     }
 
-    return success;
+    return true;
 }
 
 bool HttpPowerMeterClass::httpRequest(const char* url, Auth authType, const char* username, const char* password, const char* httpHeader, const char* httpValue, uint32_t timeout,
         char* response, size_t responseSize, char* error, size_t errorSize)
 {
-    WiFiClient* wifiClient = NULL;
-    HTTPClient httpClient;
-
-    String newUrl = url;
     String urlProtocol;
     String urlHostname;
     String urlUri;
@@ -66,48 +62,38 @@ bool HttpPowerMeterClass::httpRequest(const char* url, Auth authType, const char
     response[0] = '\0';
     error[0] = '\0';
 
-    if (authType == Auth::basic) {
-        newUrl = urlProtocol;
-        newUrl += "://";
-        newUrl += username;
-        newUrl += ":";
-        newUrl += password;
-        newUrl += "@";
-        newUrl += urlHostname;
-        newUrl += urlUri;
-    }
-    
+    // secureWifiClient MUST be created before HTTPClient
+    // see discussion: https://github.com/helgeerbe/OpenDTU-OnBattery/issues/381
+    std::unique_ptr<WiFiClient> wifiClient;
+
     if (urlProtocol == "https") {
-        wifiClient = new WiFiClientSecure;
-        reinterpret_cast<WiFiClientSecure*>(wifiClient)->setInsecure();
+      auto secureWifiClient = std::make_unique<WiFiClientSecure>();
+      secureWifiClient->setInsecure();
+      wifiClient = std::move(secureWifiClient);
     } else {
-        wifiClient = new WiFiClient;
+      wifiClient = std::make_unique<WiFiClient>();
     }
 
-    if (!httpClient.begin(*wifiClient, newUrl)) {
-        snprintf_P(error, errorSize, "httpClient.begin(%s) failed", newUrl.c_str());
-        delete wifiClient;
-        return false;
+   
+    if (!httpClient.begin(*wifiClient, url)) {
+      snprintf_P(error, errorSize, "httpClient.begin(%s) failed", url);
+      return false;
     }
-
-    httpClient.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    httpClient.setUserAgent("OpenDTU-OnBattery");
-    httpClient.setConnectTimeout(timeout);
-    httpClient.setTimeout(timeout);
-    httpClient.addHeader("Content-Type", "application/json");
-    httpClient.addHeader("Accept", "application/json");
-
-    if (strlen(httpHeader) > 0) {
-        httpClient.addHeader(httpHeader, httpValue);
-    }
-
+    prepareRequest(timeout, httpHeader, httpValue);
+    
     if (authType == Auth::digest) {
         const char *headers[1] = {"WWW-Authenticate"};
         httpClient.collectHeaders(headers, 1);
+    } else if (authType == Auth::basic) {
+        String authString = username;
+        authString += ":";
+        authString += password;
+        String auth = "Basic ";
+        auth.concat(base64::encode(authString));
+        httpClient.addHeader("Authorization", auth);
     }
 
     int httpCode = httpClient.GET();
-
     if (httpCode == HTTP_CODE_UNAUTHORIZED && authType == Auth::digest) {
         // Handle authentication challenge
         char realm[256];  // Buffer to store the realm received from the server
@@ -157,6 +143,12 @@ bool HttpPowerMeterClass::httpRequest(const char* url, Auth authType, const char
                 authorization += "\", nc=00000001, qop=auth, response=\"";
                 authorization += response;
                 authorization += "\", algorithm=SHA-256";
+                httpClient.end();
+                if (!httpClient.begin(*wifiClient, url)) {
+                    snprintf_P(error, errorSize, "httpClient.begin(%s) for digest auth failed", url);
+                    return false;
+                }
+                prepareRequest(timeout, httpHeader, httpValue);
                 httpClient.addHeader("Authorization", authorization);
                 httpCode = httpClient.GET();
             }
@@ -173,13 +165,12 @@ bool HttpPowerMeterClass::httpRequest(const char* url, Auth authType, const char
             snprintf(response, responseSize, responseBody.c_str());
         }
     } else if (httpCode <= 0) {
-        snprintf_P(error, errorSize, "Error(%s): %s", newUrl.c_str(), httpClient.errorToString(httpCode).c_str());
+        snprintf_P(error, errorSize, "Error(%s): %s", url, httpClient.errorToString(httpCode).c_str());
     } else if (httpCode != HTTP_CODE_OK) {
         snprintf_P(error, errorSize, "Bad HTTP code: %d", httpCode);
     }
 
     httpClient.end();
-    delete wifiClient;
 
     if (error[0] != '\0') {
         return false;
@@ -255,6 +246,19 @@ String HttpPowerMeterClass::sha256(const String& data) {
   }
 
   return hashStr;
+}
+
+void HttpPowerMeterClass::prepareRequest(uint32_t timeout, const char* httpHeader, const char* httpValue) {
+    httpClient.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    httpClient.setUserAgent("OpenDTU-OnBattery");
+    httpClient.setConnectTimeout(timeout);
+    httpClient.setTimeout(timeout);
+    httpClient.addHeader("Content-Type", "application/json");
+    httpClient.addHeader("Accept", "application/json");
+
+    if (strlen(httpHeader) > 0) {
+        httpClient.addHeader(httpHeader, httpValue);
+    }
 }
 
 HttpPowerMeterClass HttpPowerMeter;

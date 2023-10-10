@@ -8,6 +8,7 @@
 #include "WebApi_dtu.h"
 #include "WebApi_eventlog.h"
 #include "WebApi_firmware.h"
+#include "WebApi_gridprofile.h"
 #include "WebApi_inverter.h"
 #include "WebApi_limit.h"
 #include "WebApi_maintenance.h"
@@ -27,8 +28,7 @@
 #include "WebApi_vedirect.h"
 #include "WebApi_ws_Huawei.h"
 #include "WebApi_Huawei.h"
-#include "WebApi_ws_Pylontech.h"
-#include "WebApi_Pylontech.h"
+#include "WebApi_ws_battery.h"
 #include <ESPAsyncWebServer.h>
 
 class WebApiClass {
@@ -53,6 +53,7 @@ private:
     WebApiDtuClass _webApiDtu;
     WebApiEventlogClass _webApiEventlog;
     WebApiFirmwareClass _webApiFirmware;
+    WebApiGridProfileClass _webApiGridprofile;
     WebApiInverterClass _webApiInverter;
     WebApiLimitClass _webApiLimit;
     WebApiMaintenanceClass _webApiMaintenance;
@@ -72,9 +73,7 @@ private:
     WebApiVedirectClass _webApiVedirect;
     WebApiHuaweiClass _webApiHuaweiClass;
     WebApiWsHuaweiLiveClass _webApiWsHuaweiLive;
-    WebApiPylontechClass _webApiPylontechClass;
-    WebApiWsPylontechLiveClass _webApiWsPylontechLive;
-    
+    WebApiWsBatteryLiveClass _webApiWsBatteryLive;
 };
 
 extern WebApiClass WebApi;
