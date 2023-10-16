@@ -99,7 +99,7 @@ float PowerMeterClass::getPowerTotal(bool forceUpdate)
     if (forceUpdate) {
         CONFIG_T& config = Configuration.get();
         if (config.PowerMeter_Enabled
-                && (millis() - _lastPowerMeterUpdate) > (1000)) {
+                && (millis() - _lastPowerMeterUpdate) > (2500)) {
             readPowerMeter();
         }
     }

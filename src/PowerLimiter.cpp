@@ -428,7 +428,7 @@ int32_t PowerLimiterClass::calcPowerLimit(std::shared_ptr<InverterAbstract> inve
     CONFIG_T& config = Configuration.get();
     
     int32_t acPower = 0;
-    int32_t newPowerLimit = round(PowerMeter.getPowerTotal());
+    int32_t newPowerLimit = round(PowerMeter.getPowerTotal(true));
 
     if (!solarPowerEnabled && !batteryDischargeEnabled) {
       // Case 1 - No energy sources available
