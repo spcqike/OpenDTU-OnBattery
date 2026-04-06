@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #pragma once
 
+#include "FeatureFlags.h"
 #include <powermeter/Provider.h>
 #include <TaskSchedulerDeclarations.h>
 #include <memory>
@@ -28,4 +29,6 @@ private:
 
 } // namespace PowerMeters
 
+#if OPENDTU_FEATURE_POWERMETER
 extern PowerMeters::Controller PowerMeter;
+#endif

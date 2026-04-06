@@ -4,20 +4,39 @@
  */
 #include "WebApi_mqtt.h"
 #include "Configuration.h"
+#include "FeatureFlags.h"
+#if OPENDTU_FEATURE_BATTERY
 #include <battery/Controller.h>
+#endif
+#if OPENDTU_FEATURE_MQTT_HASS
 #include "MqttHandleHass.h"
+#endif
+#if OPENDTU_FEATURE_POWERLIMITER
+#if OPENDTU_FEATURE_MQTT_HASS
 #include "MqttHandlePowerLimiterHass.h"
+#endif
+#endif
 #include "MqttHandleInverter.h"
+#if OPENDTU_FEATURE_POWERLIMITER
 #include "MqttHandlePowerLimiter.h"
+#endif
 #include "MqttSettings.h"
 #include "WebApi.h"
 #include "WebApi_errors.h"
 #include "helper.h"
+#if OPENDTU_FEATURE_POWERLIMITER
 #include "PowerLimiter.h"
+#endif
+#if OPENDTU_FEATURE_POWERMETER
 #include <powermeter/Controller.h>
+#endif
 #include <AsyncJson.h>
+#if OPENDTU_FEATURE_SOLARCHARGER
 #include <solarcharger/Controller.h>
+#endif
+#if OPENDTU_FEATURE_GRIDCHARGER
 #include <gridcharger/Controller.h>
+#endif
 
 void WebApiMqttClass::init(AsyncWebServer& server, Scheduler& scheduler)
 {
@@ -47,17 +66,25 @@ void WebApiMqttClass::onMqttStatus(AsyncWebServerRequest* request)
     root["mqtt_connected"] = MqttSettings.getConnected();
     root["mqtt_retain"] = config.Mqtt.Retain;
     root["mqtt_tls"] = config.Mqtt.Tls.Enabled;
+#if OPENDTU_FEATURE_MQTT_TLS_CERTINFO
     root["mqtt_root_ca_cert_info"] = getTlsCertInfo(config.Mqtt.Tls.RootCaCert);
     root["mqtt_tls_cert_login"] = config.Mqtt.Tls.CertLogin;
     root["mqtt_client_cert_info"] = getTlsCertInfo(config.Mqtt.Tls.ClientCert);
+#else
+    root["mqtt_root_ca_cert_info"] = "";
+    root["mqtt_tls_cert_login"] = config.Mqtt.Tls.CertLogin;
+    root["mqtt_client_cert_info"] = "";
+#endif
     root["mqtt_lwt_topic"] = String(config.Mqtt.Topic) + config.Mqtt.Lwt.Topic;
     root["mqtt_publish_interval"] = config.Mqtt.PublishInterval;
     root["mqtt_clean_session"] = config.Mqtt.CleanSession;
+#if OPENDTU_FEATURE_MQTT_HASS
     root["mqtt_hass_enabled"] = config.Mqtt.Hass.Enabled;
     root["mqtt_hass_expire"] = config.Mqtt.Hass.Expire;
     root["mqtt_hass_retain"] = config.Mqtt.Hass.Retain;
     root["mqtt_hass_topic"] = config.Mqtt.Hass.Topic;
     root["mqtt_hass_individualpanels"] = config.Mqtt.Hass.IndividualPanels;
+#endif
 
     WebApi.sendJsonResponse(request, response, __FUNCTION__, __LINE__);
 }
@@ -91,11 +118,13 @@ void WebApiMqttClass::onMqttAdminGet(AsyncWebServerRequest* request)
     root["mqtt_lwt_qos"] = config.Mqtt.Lwt.Qos;
     root["mqtt_publish_interval"] = config.Mqtt.PublishInterval;
     root["mqtt_clean_session"] = config.Mqtt.CleanSession;
+#if OPENDTU_FEATURE_MQTT_HASS
     root["mqtt_hass_enabled"] = config.Mqtt.Hass.Enabled;
     root["mqtt_hass_expire"] = config.Mqtt.Hass.Expire;
     root["mqtt_hass_retain"] = config.Mqtt.Hass.Retain;
     root["mqtt_hass_topic"] = config.Mqtt.Hass.Topic;
     root["mqtt_hass_individualpanels"] = config.Mqtt.Hass.IndividualPanels;
+#endif
 
     WebApi.sendJsonResponse(request, response, __FUNCTION__, __LINE__);
 }
@@ -114,7 +143,7 @@ void WebApiMqttClass::onMqttAdminPost(AsyncWebServerRequest* request)
 
     auto& retMsg = response->getRoot();
 
-    if (!(root["mqtt_enabled"].is<bool>()
+    bool hasRequiredFields = root["mqtt_enabled"].is<bool>()
             && root["mqtt_hostname"].is<String>()
             && root["mqtt_port"].is<uint>()
             && root["mqtt_clientid"].is<String>()
@@ -131,12 +160,18 @@ void WebApiMqttClass::onMqttAdminPost(AsyncWebServerRequest* request)
             && root["mqtt_lwt_offline"].is<String>()
             && root["mqtt_lwt_qos"].is<uint8_t>()
             && root["mqtt_publish_interval"].is<uint32_t>()
-            && root["mqtt_clean_session"].is<bool>()
+            && root["mqtt_clean_session"].is<bool>();
+
+#if OPENDTU_FEATURE_MQTT_HASS
+    hasRequiredFields = hasRequiredFields
             && root["mqtt_hass_enabled"].is<bool>()
             && root["mqtt_hass_expire"].is<bool>()
             && root["mqtt_hass_retain"].is<bool>()
             && root["mqtt_hass_topic"].is<String>()
-            && root["mqtt_hass_individualpanels"].is<bool>())) {
+            && root["mqtt_hass_individualpanels"].is<bool>();
+#endif
+
+    if (!hasRequiredFields) {
         retMsg["message"] = "Values are missing!";
         retMsg["code"] = WebApiError::GenericValueMissing;
         WebApi.sendJsonResponse(request, response, __FUNCTION__, __LINE__);
@@ -260,6 +295,7 @@ void WebApiMqttClass::onMqttAdminPost(AsyncWebServerRequest* request)
             return;
         }
 
+#if OPENDTU_FEATURE_MQTT_HASS
         if (root["mqtt_hass_enabled"].as<bool>()) {
             if (root["mqtt_hass_topic"].as<String>().length() > MQTT_MAX_TOPIC_STRLEN) {
                 retMsg["message"] = "Hass topic must not be longer than " STR_EXTRACT(MQTT_MAX_TOPIC_STRLEN) " characters!";
@@ -283,6 +319,7 @@ void WebApiMqttClass::onMqttAdminPost(AsyncWebServerRequest* request)
                 return;
             }
         }
+#endif
     }
 
     {
@@ -307,21 +344,27 @@ void WebApiMqttClass::onMqttAdminPost(AsyncWebServerRequest* request)
         config.Mqtt.Lwt.Qos = root["mqtt_lwt_qos"].as<uint8_t>();
         config.Mqtt.PublishInterval = root["mqtt_publish_interval"].as<uint32_t>();
         config.Mqtt.CleanSession = root["mqtt_clean_session"].as<bool>();
+#if OPENDTU_FEATURE_MQTT_HASS
         config.Mqtt.Hass.Enabled = root["mqtt_hass_enabled"].as<bool>();
         config.Mqtt.Hass.Expire = root["mqtt_hass_expire"].as<bool>();
         config.Mqtt.Hass.Retain = root["mqtt_hass_retain"].as<bool>();
         config.Mqtt.Hass.IndividualPanels = root["mqtt_hass_individualpanels"].as<bool>();
         strlcpy(config.Mqtt.Hass.Topic, root["mqtt_hass_topic"].as<String>().c_str(), sizeof(config.Mqtt.Hass.Topic));
+#endif
 
         // Check if base topic was changed
         if (strcmp(config.Mqtt.Topic, root["mqtt_topic"].as<String>().c_str())) {
             MqttHandleInverter.unsubscribeTopics();
+#if OPENDTU_FEATURE_POWERLIMITER
             MqttHandlePowerLimiter.unsubscribeTopics();
+#endif
 
             strlcpy(config.Mqtt.Topic, root["mqtt_topic"].as<String>().c_str(), sizeof(config.Mqtt.Topic));
 
             MqttHandleInverter.subscribeTopics();
+#if OPENDTU_FEATURE_POWERLIMITER
             MqttHandlePowerLimiter.subscribeTopics();
+#endif
         }
     }
 
@@ -331,18 +374,34 @@ void WebApiMqttClass::onMqttAdminPost(AsyncWebServerRequest* request)
 
     MqttSettings.performReconnect();
 
+#if OPENDTU_FEATURE_MQTT_HASS
     MqttHandleHass.forceUpdate();
+#endif
+#if OPENDTU_FEATURE_POWERLIMITER
+#if OPENDTU_FEATURE_MQTT_HASS
     MqttHandlePowerLimiterHass.forceUpdate();
+#endif
+#endif
+#if OPENDTU_FEATURE_BATTERY
     Battery.updateSettings();
-
+#endif
+#if OPENDTU_FEATURE_GRIDCHARGER
     GridCharger.updateSettings();
+#endif
+#if OPENDTU_FEATURE_POWERLIMITER
     MqttHandlePowerLimiter.forceUpdate();
-
+#endif
+#if OPENDTU_FEATURE_SOLARCHARGER
     SolarCharger.updateSettings();
+#endif
 }
 
 String WebApiMqttClass::getTlsCertInfo(const char* cert)
 {
+#if !OPENDTU_FEATURE_MQTT_TLS_CERTINFO
+    (void)cert;
+    return "";
+#else
     char tlsCertInfo[1024] = "";
 
     mbedtls_x509_crt tlsCert;
@@ -360,4 +419,5 @@ String WebApiMqttClass::getTlsCertInfo(const char* cert)
     mbedtls_x509_crt_free(&tlsCert);
 
     return tlsCertInfo;
+#endif
 }

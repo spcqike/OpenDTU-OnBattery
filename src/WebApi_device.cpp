@@ -4,7 +4,10 @@
  */
 #include "WebApi_device.h"
 #include "Configuration.h"
+#include "FeatureFlags.h"
+#if OPENDTU_FEATURE_DISPLAY
 #include "Display_Graphic.h"
+#endif
 #include "PinMapping.h"
 #include "RestartHelper.h"
 #include "WebApi.h"
@@ -69,18 +72,21 @@ void WebApiDeviceClass::onDeviceAdminGet(AsyncWebServerRequest* request)
     ethPinObj["clk_mode"] = pin.eth_clk_mode;
 #endif
 
+#if OPENDTU_FEATURE_DISPLAY
     auto displayPinObj = curPin["display"].to<JsonObject>();
     displayPinObj["type"] = pin.display_type;
     displayPinObj["data"] = pin.display_data;
     displayPinObj["clk"] = pin.display_clk;
     displayPinObj["cs"] = pin.display_cs;
     displayPinObj["reset"] = pin.display_reset;
+#endif
 
     auto ledPinObj = curPin["led"].to<JsonObject>();
     for (uint8_t i = 0; i < PINMAPPING_LED_COUNT; i++) {
         ledPinObj["led" + String(i)] = pin.led[i];
     }
 
+#if OPENDTU_FEATURE_DISPLAY
     auto display = root["display"].to<JsonObject>();
     display["rotation"] = config.Display.Rotation;
     display["power_safe"] = config.Display.PowerSafe;
@@ -89,6 +95,7 @@ void WebApiDeviceClass::onDeviceAdminGet(AsyncWebServerRequest* request)
     display["locale"] = config.Display.Locale;
     display["diagramduration"] = config.Display.Diagram.Duration;
     display["diagrammode"] = config.Display.Diagram.Mode;
+#endif
 
     auto leds = root["led"].to<JsonArray>();
     for (uint8_t i = 0; i < PINMAPPING_LED_COUNT; i++) {
@@ -169,6 +176,7 @@ void WebApiDeviceClass::onDeviceAdminPost(AsyncWebServerRequest* request)
         performRestart = root["curPin"]["name"].as<String>() != config.Dev_PinMapping;
 
         strlcpy(config.Dev_PinMapping, root["curPin"]["name"].as<String>().c_str(), sizeof(config.Dev_PinMapping));
+#if OPENDTU_FEATURE_DISPLAY
         config.Display.Rotation = root["display"]["rotation"].as<uint8_t>();
         config.Display.PowerSafe = root["display"]["power_safe"].as<bool>();
         config.Display.ScreenSaver = root["display"]["screensaver"].as<bool>();
@@ -176,6 +184,7 @@ void WebApiDeviceClass::onDeviceAdminPost(AsyncWebServerRequest* request)
         strlcpy(config.Display.Locale, root["display"]["locale"].as<String>().c_str(), sizeof(config.Display.Locale));
         config.Display.Diagram.Duration = root["display"]["diagramduration"].as<uint32_t>();
         config.Display.Diagram.Mode = root["display"]["diagrammode"].as<DiagramMode_t>();
+#endif
 
         for (uint8_t i = 0; i < PINMAPPING_LED_COUNT; i++) {
             config.Led_Single[i].Brightness = root["led"][i]["brightness"].as<uint8_t>();
@@ -185,6 +194,7 @@ void WebApiDeviceClass::onDeviceAdminPost(AsyncWebServerRequest* request)
 
     auto const& config = Configuration.get();
 
+#if OPENDTU_FEATURE_DISPLAY
     Display.setDiagramMode(static_cast<DiagramMode_t>(config.Display.Diagram.Mode));
     Display.setOrientation(config.Display.Rotation);
     Display.enablePowerSafe = config.Display.PowerSafe;
@@ -192,6 +202,7 @@ void WebApiDeviceClass::onDeviceAdminPost(AsyncWebServerRequest* request)
     Display.setContrast(config.Display.Contrast);
     Display.setLocale(config.Display.Locale);
     Display.Diagram().updatePeriod();
+#endif
 
     WebApi.writeConfig(retMsg);
 

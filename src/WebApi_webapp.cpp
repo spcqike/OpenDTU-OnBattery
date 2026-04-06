@@ -18,6 +18,17 @@ extern const uint8_t file_favicon_png_end[] asm("_binary_webapp_dist_favicon_png
 extern const uint8_t file_app_js_end[] asm("_binary_webapp_dist_js_app_js_gz_end");
 extern const uint8_t file_site_webmanifest_end[] asm("_binary_webapp_dist_site_webmanifest_end");
 
+static bool isApiOrWebSocketPath(String const& url)
+{
+    return url.equals("/api")
+        || url.startsWith("/api/")
+        || url.equals("/livedata")
+        || url.equals("/batterylivedata")
+        || url.equals("/gridchargerlivedata")
+        || url.equals("/solarchargerlivedata")
+        || url.equals("/console");
+}
+
 void WebApiWebappClass::responseBinaryDataWithETagCache(AsyncWebServerRequest* request, const String& contentType, const String& contentEncoding, const uint8_t* content, size_t len)
 {
     auto md5 = MD5Builder();
@@ -72,6 +83,13 @@ void WebApiWebappClass::init(AsyncWebServer& server, Scheduler& scheduler)
     });
 
     server.onNotFound([&](AsyncWebServerRequest* request) {
+        if (isApiOrWebSocketPath(request->url())) {
+            if (request->url().startsWith("/api")) {
+                return request->send(404, asyncsrv::T_application_json, "{\"message\":\"Not Found\"}");
+            }
+            return request->send(404, asyncsrv::T_text_plain, "Not Found");
+        }
+
         responseBinaryDataWithETagCache(request, asyncsrv::T_text_html, asyncsrv::T_gzip, file_index_html_start, file_index_html_end - file_index_html_start);
     });
 

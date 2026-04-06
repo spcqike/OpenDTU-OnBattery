@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #pragma once
 
+#include "FeatureFlags.h"
 #include "Configuration.h"
 #include <espMqttClient.h>
 #include <TaskSchedulerDeclarations.h>
@@ -63,4 +64,6 @@ private:
     std::deque<std::function<void()>> _mqttCallbacks;
 };
 
+#if OPENDTU_FEATURE_POWERLIMITER
 extern MqttHandlePowerLimiterClass MqttHandlePowerLimiter;
+#endif

@@ -168,6 +168,9 @@ export default defineComponent({
                 .then((response) => handleResponse(response, this.$emitter, this.$router))
                 .then((data) => {
                     this.networkConfigList = data;
+                })
+                .catch(() => {})
+                .finally(() => {
                     this.dataLoading = false;
                 });
         },

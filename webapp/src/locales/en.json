@@ -50,6 +50,12 @@
     "Error": {
         "Oops": "Oops!"
     },
+    "featuredisabled": {
+        "Title": "Feature disabled",
+        "Message": "The requested section is unavailable because {feature} is disabled in this firmware build.",
+        "Target": "Requested path: {path}",
+        "BackHome": "Back to home"
+    },
     "localeswitcher": {
         "Dark": "Dark",
         "Light": "Light",

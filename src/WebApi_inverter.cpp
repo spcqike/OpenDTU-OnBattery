@@ -4,8 +4,13 @@
  */
 #include "WebApi_inverter.h"
 #include "Configuration.h"
+#include "FeatureFlags.h"
+#if OPENDTU_FEATURE_MQTT_HASS
 #include "MqttHandleHass.h"
+#endif
+#if OPENDTU_FEATURE_POWERLIMITER
 #include "PowerLimiter.h"
+#endif
 #include "WebApi.h"
 #include "WebApi_errors.h"
 #include "defaults.h"
@@ -150,9 +155,13 @@ void WebApiInverterClass::onInverterAdd(AsyncWebServerRequest* request)
         }
     }
 
+#if OPENDTU_FEATURE_MQTT_HASS
     MqttHandleHass.forceUpdate();
+#endif
 
+#if OPENDTU_FEATURE_POWERLIMITER
     PowerLimiter.triggerReloadingConfig();
+#endif
 }
 
 void WebApiInverterClass::onInverterEdit(AsyncWebServerRequest* request)
@@ -276,9 +285,13 @@ void WebApiInverterClass::onInverterEdit(AsyncWebServerRequest* request)
         }
     }
 
+#if OPENDTU_FEATURE_MQTT_HASS
     MqttHandleHass.forceUpdate();
+#endif
 
+#if OPENDTU_FEATURE_POWERLIMITER
     PowerLimiter.triggerReloadingConfig();
+#endif
 }
 
 void WebApiInverterClass::onInverterDelete(AsyncWebServerRequest* request)
@@ -320,9 +333,13 @@ void WebApiInverterClass::onInverterDelete(AsyncWebServerRequest* request)
 
     WebApi.sendJsonResponse(request, response, __FUNCTION__, __LINE__);
 
+#if OPENDTU_FEATURE_MQTT_HASS
     MqttHandleHass.forceUpdate();
+#endif
 
+#if OPENDTU_FEATURE_POWERLIMITER
     PowerLimiter.triggerReloadingConfig();
+#endif
 }
 
 void WebApiInverterClass::onInverterOrder(AsyncWebServerRequest* request)

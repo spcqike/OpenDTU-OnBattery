@@ -10,6 +10,8 @@
 #include "WebApi.h"
 #include "defaults.h"
 
+#if OPENDTU_FEATURE_GRIDCHARGER
+
 #undef TAG
 static const char* TAG = "webapi";
 
@@ -136,3 +138,5 @@ void WebApiWsGridChargerLiveClass::onLivedataStatus(AsyncWebServerRequest* reque
         WebApi.sendTooManyRequests(request);
     }
 }
+
+#endif // OPENDTU_FEATURE_GRIDCHARGER

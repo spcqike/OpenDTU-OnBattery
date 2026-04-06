@@ -270,6 +270,42 @@ import type { PinMapping, Device } from '@/types/PinMapping';
 import { authHeader, handleResponse } from '@/utils/authentication';
 import { defineComponent } from 'vue';
 
+interface DisplayLocaleOption {
+    code: string;
+    name: string;
+}
+
+function createDefaultDevice(name = 'Default'): Device {
+    return {
+        name,
+        links: [],
+        nrf24: { miso: -1, mosi: -1, clk: -1, irq: -1, en: -1, cs: -1 },
+        cmt: { clk: -1, cs: -1, fcs: -1, sdio: -1, gpio2: -1, gpio3: -1 },
+        eth: { enabled: false, phy_addr: -1, power: -1, mdc: -1, mdio: -1, type: -1, clk_mode: -1 },
+        display: { type: -1, data: -1, clk: -1, cs: -1, reset: -1 },
+        victron: { rx: -1, tx: -1 },
+        battery: { rx: -1, tx: -1 },
+        huawei: { miso: -1, mosi: -1, clk: -1, cs: -1, irq: -1, rx: -1, tx: -1, power: -1 },
+        powermeter: { rx: -1, tx: -1, dere: -1, rxen: -1, txen: -1 },
+    };
+}
+
+function createDefaultDeviceConfig(): DeviceConfig {
+    return {
+        curPin: createDefaultDevice('Default'),
+        display: {
+            rotation: 0,
+            power_safe: false,
+            screensaver: false,
+            contrast: 100,
+            locale: 'en',
+            diagramduration: 600,
+            diagrammode: 0,
+        },
+        led: [],
+    };
+}
+
 export default defineComponent({
     components: {
         BasePage,
@@ -283,8 +319,8 @@ export default defineComponent({
             dataLoading: true,
             pinMappingLoading: true,
             languageLoading: true,
-            deviceConfigList: {} as DeviceConfig,
-            pinMappingList: {} as PinMapping,
+            deviceConfigList: createDefaultDeviceConfig(),
+            pinMappingList: [] as PinMapping,
             alert: {} as AlertResponse,
             equalBrightnessCheckVal: false,
             displayRotationList: [
@@ -297,7 +333,7 @@ export default defineComponent({
                 { code: 'en', name: 'en' },
                 { code: 'de', name: 'de' },
                 { code: 'fr', name: 'fr' },
-            ],
+            ] as Array<DisplayLocaleOption>,
             diagramModeList: [
                 { key: 0, value: 'off' },
                 { key: 1, value: 'small' },
@@ -329,8 +365,11 @@ export default defineComponent({
             this.languageLoading = true;
             fetch('/api/i18n/languages')
                 .then((response) => handleResponse(response, this.$emitter, this.$router))
-                .then((data) => {
+                .then((data: Array<DisplayLocaleOption>) => {
                     this.displayLocaleList.push(...data);
+                })
+                .catch(() => {})
+                .finally(() => {
                     this.languageLoading = false;
                 });
         },
@@ -349,11 +388,11 @@ export default defineComponent({
                         this.alert.type = 'danger';
                         this.alert.show = true;
                     }
-                    this.pinMappingList = Array<Device>();
+                    this.pinMappingList = [] as PinMapping;
                 })
                 .finally(() => {
                     this.pinMappingList.sort((a, b) => (a.name < b.name ? -1 : 1));
-                    this.pinMappingList.splice(0, 0, { name: 'Default' } as Device);
+                    this.pinMappingList.splice(0, 0, createDefaultDevice('Default'));
                     this.pinMappingLoading = false;
                 });
         },
@@ -362,14 +401,30 @@ export default defineComponent({
             fetch('/api/device/config', { headers: authHeader() })
                 .then((response) => handleResponse(response, this.$emitter, this.$router))
                 .then((data) => {
-                    this.deviceConfigList = data;
+                    const defaults = createDefaultDeviceConfig();
+                    this.deviceConfigList = {
+                        ...defaults,
+                        ...data,
+                        curPin: {
+                            ...defaults.curPin,
+                            ...(data?.curPin ?? {}),
+                        },
+                        display: {
+                            ...defaults.display,
+                            ...(data?.display ?? {}),
+                        },
+                        led: Array.isArray(data?.led) ? data.led : defaults.led,
+                    };
                     if (this.deviceConfigList.curPin.name === '') {
                         this.deviceConfigList.curPin.name = 'Default';
                     }
-                    this.dataLoading = false;
-                })
-                .then(() => {
                     this.equalBrightnessCheckVal = this.isEqualBrightness();
+                })
+                .catch(() => {
+                    this.deviceConfigList = createDefaultDeviceConfig();
+                })
+                .finally(() => {
+                    this.dataLoading = false;
                 });
         },
         savePinConfig(e: Event) {

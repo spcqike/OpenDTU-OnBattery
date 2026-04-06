@@ -3,14 +3,19 @@
  * Copyright (C) 2022-2024 Thomas Basler and others
  */
 #include "WebApi_gridcharger.h"
+#include "FeatureFlags.h"
 #include <gridcharger/Controller.h>
+#if OPENDTU_FEATURE_GRIDCHARGER_PROVIDER_HUAWEI
 #include <gridcharger/huawei/Provider.h>
+#endif
 #include "Configuration.h"
 #include "PinMapping.h"
 #include "WebApi.h"
 #include "WebApi_errors.h"
 #include <AsyncJson.h>
 #include <Hoymiles.h>
+
+#if OPENDTU_FEATURE_GRIDCHARGER
 
 void WebApiGridChargerClass::init(AsyncWebServer& server, Scheduler& scheduler)
 {
@@ -53,6 +58,12 @@ void WebApiGridChargerClass::onLimitPost(AsyncWebServerRequest* request)
 
     auto& retMsg = response->getRoot();
 
+#if !OPENDTU_FEATURE_GRIDCHARGER_PROVIDER_HUAWEI
+    retMsg["message"] = "Current provider does not support this feature!";
+    retMsg["code"] = WebApiError::GenericNoValueFound;
+    WebApi.sendJsonResponse(request, response, __FUNCTION__, __LINE__);
+    return;
+#else
     using Setting = GridChargers::Huawei::HardwareInterface::Setting;
 
     auto applySetting = [&](const char* key, float min, float max, WebApiError error, Setting setting) -> bool {
@@ -108,6 +119,7 @@ void WebApiGridChargerClass::onLimitPost(AsyncWebServerRequest* request)
     retMsg["code"] = WebApiError::GenericSuccess;
 
     WebApi.sendJsonResponse(request, response, __FUNCTION__, __LINE__);
+#endif
 }
 
 void WebApiGridChargerClass::onPowerPost(AsyncWebServerRequest* request)
@@ -132,8 +144,12 @@ void WebApiGridChargerClass::onPowerPost(AsyncWebServerRequest* request)
     }
 
     bool power = root["power"].as<bool>();
+#if !OPENDTU_FEATURE_GRIDCHARGER_PROVIDER_HUAWEI
+    (void)power;
+#endif
 
     // Only call Huawei-specific methods when Huawei provider is active
+#if OPENDTU_FEATURE_GRIDCHARGER_PROVIDER_HUAWEI
     auto const& config = Configuration.get();
     if (config.GridCharger.Provider == GridChargerProviderType::HUAWEI) {
         auto* huaweiProvider = GridCharger.getProvider<GridChargers::Huawei::Provider>();
@@ -148,6 +164,7 @@ void WebApiGridChargerClass::onPowerPost(AsyncWebServerRequest* request)
             return;
         }
     }
+#endif
 
     retMsg["message"] = "Current provider does not support this feature!";
     retMsg["code"] = WebApiError::GenericNoValueFound;
@@ -215,8 +232,7 @@ void WebApiGridChargerClass::onAdminPost(AsyncWebServerRequest* request)
         return;
     }
 
-    using HuaweiProvider = GridChargers::Huawei::Provider;
-
+#if OPENDTU_FEATURE_GRIDCHARGER_PROVIDER_HUAWEI
     auto isValidRange = [&](const char* valueName, float min, float max, WebApiError error) -> bool {
         if (root["huawei"][valueName].as<float>() < min || root["huawei"][valueName].as<float>() > max) {
             retMsg["message"] = String(valueName) + " out of range [" + String(min) + ", " + String(max) + "]";
@@ -229,11 +245,12 @@ void WebApiGridChargerClass::onAdminPost(AsyncWebServerRequest* request)
         return true;
     };
 
-    if (!isValidRange("offline_voltage", HuaweiProvider::MIN_OFFLINE_VOLTAGE, HuaweiProvider::MAX_OFFLINE_VOLTAGE, WebApiError::R48xxVoltageLimitOutOfRange) ||
-        !isValidRange("offline_current", HuaweiProvider::MIN_OFFLINE_CURRENT, HuaweiProvider::MAX_OFFLINE_CURRENT, WebApiError::R48xxCurrentLimitOutOfRange) ||
-        !isValidRange("input_current_limit", HuaweiProvider::MIN_INPUT_CURRENT_LIMIT, HuaweiProvider::MAX_INPUT_CURRENT_LIMIT, WebApiError::R48xxCurrentLimitOutOfRange)) {
+    if (!isValidRange("offline_voltage", GridChargers::Huawei::Provider::MIN_OFFLINE_VOLTAGE, GridChargers::Huawei::Provider::MAX_OFFLINE_VOLTAGE, WebApiError::R48xxVoltageLimitOutOfRange) ||
+        !isValidRange("offline_current", GridChargers::Huawei::Provider::MIN_OFFLINE_CURRENT, GridChargers::Huawei::Provider::MAX_OFFLINE_CURRENT, WebApiError::R48xxCurrentLimitOutOfRange) ||
+        !isValidRange("input_current_limit", GridChargers::Huawei::Provider::MIN_INPUT_CURRENT_LIMIT, GridChargers::Huawei::Provider::MAX_INPUT_CURRENT_LIMIT, WebApiError::R48xxCurrentLimitOutOfRange)) {
         return;
     }
+#endif
 
     {
         auto guard = Configuration.getWriteGuard();
@@ -250,3 +267,5 @@ void WebApiGridChargerClass::onAdminPost(AsyncWebServerRequest* request)
 
     GridCharger.updateSettings();
 }
+
+#endif // OPENDTU_FEATURE_GRIDCHARGER

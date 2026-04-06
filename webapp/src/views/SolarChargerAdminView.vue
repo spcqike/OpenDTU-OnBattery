@@ -202,6 +202,7 @@ import FormFooter from '@/components/FormFooter.vue';
 import InputElement from '@/components/InputElement.vue';
 import type { SolarChargerConfig } from '@/types/SolarChargerConfig';
 import { authHeader, handleResponse } from '@/utils/authentication';
+import { features } from '@/utils/features';
 import { defineComponent } from 'vue';
 
 export default defineComponent({
@@ -216,13 +217,18 @@ export default defineComponent({
         return {
             dataLoading: true,
             solarChargerConfigList: {} as SolarChargerConfig,
+            features,
             alertMessage: '',
             alertType: 'info',
             showAlert: false,
             providerTypeList: [
                 { key: 0, value: 'VeDirect' },
                 { key: 1, value: 'Mqtt' },
-            ],
+            ].filter((provider) => {
+                if (provider.key === 0) return features.providers.solarcharger.vedirect;
+                if (provider.key === 1) return features.providers.solarcharger.mqtt;
+                return true;
+            }),
             wattageUnitTypeList: [
                 { key: 0, value: 'kW' },
                 { key: 1, value: 'W' },

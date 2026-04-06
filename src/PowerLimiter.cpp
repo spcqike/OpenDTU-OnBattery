@@ -6,6 +6,7 @@
 #include <battery/Controller.h>
 #include <battery/Stats.h>
 #include <powermeter/Controller.h>
+#include "FeatureFlags.h"
 #include "PowerLimiter.h"
 #include "Configuration.h"
 #include "MqttSettings.h"
@@ -18,6 +19,8 @@
 #include <frozen/map.h>
 #include "SunPosition.h"
 #include <LogHelper.h>
+
+#if OPENDTU_FEATURE_POWERLIMITER
 
 #undef TAG
 static const char* TAG = "dynamicPowerLimiter";
@@ -41,7 +44,9 @@ static auto sSmartBufferPoweredFilter = [](PowerLimiterInverter const& inv) {
 
 static const char sSmartBufferPoweredExpression[] = "smart-buffer-powered";
 
+#if OPENDTU_FEATURE_POWERLIMITER
 PowerLimiterClass PowerLimiter;
+#endif
 
 void PowerLimiterClass::init(Scheduler& scheduler)
 {
@@ -208,9 +213,11 @@ void PowerLimiterClass::loop()
     // arrives. this can be the case for readings provided by networked meter
     // readers, where a packet needs to travel through the network for some
     // time after the actual measurement was done by the reader.
+#if OPENDTU_FEATURE_POWERMETER
     if (PowerMeter.isDataValid() && PowerMeter.getLastUpdate() <= (latestInverterStats + 2000)) {
         return announceStatus(Status::PowerMeterPending);
     }
+#endif
 
     // since _lastCalculation and _calculationBackoffMs are initialized to
     // zero, this test is passed the first time the condition is checked.
@@ -342,12 +349,16 @@ void PowerLimiterClass::loop()
             config.PowerLimiter.RestartHour);
 
     if (usesBatteryPoweredInverter()) {
+#if OPENDTU_FEATURE_BATTERY
         DTU_LOGD("battery interface %sabled, SoC %.1f %% (%s), age %u s (%s)",
                 (config.Battery.Enabled?"en":"dis"),
                 Battery.getStats()->getSoC(),
                 (config.PowerLimiter.IgnoreSoc?"ignored":"used"),
                 Battery.getStats()->getSoCAgeSeconds(),
                 (Battery.getStats()->isSoCValid()?"valid":"stale"));
+#else
+        DTU_LOGD("battery interface disabled at compile-time");
+#endif
 
         auto dcVoltage = getBatteryVoltage(true/*log voltages only once per DPL loop*/);
         DTU_LOGD("battery voltage %.2f V, load-corrected voltage %.2f V @ %.0f W, factor %.5f 1/A",
@@ -454,18 +465,22 @@ float PowerLimiterClass::getBatteryVoltage(bool log) const {
 
     float chargeControllerVoltage = -1;
 
+#if OPENDTU_FEATURE_SOLARCHARGER
     auto chargerOutputVoltage = SolarCharger.getStats()->getOutputVoltage();
     if (chargerOutputVoltage) {
         res = chargeControllerVoltage = *chargerOutputVoltage;
     }
+#endif
 
     float bmsVoltage = -1;
+#if OPENDTU_FEATURE_BATTERY
     auto stats = Battery.getStats();
     if (config.Battery.Enabled
             && stats->isVoltageValid()
             && stats->getVoltageAgeSeconds() < 60) {
         res = bmsVoltage = stats->getVoltage();
     }
+#endif
 
     if (log) {
         DTU_LOGD("BMS: %.2f V, MPPT: %.2f V, inverter %s: %.2f",
@@ -511,11 +526,13 @@ void PowerLimiterClass::unconditionalFullSolarPassthrough()
 
     uint16_t targetOutput = 0;
 
+#if OPENDTU_FEATURE_SOLARCHARGER
     auto solarChargerOutput = SolarCharger.getStats()->getOutputPowerWatts();
     if (solarChargerOutput) {
         targetOutput = static_cast<uint16_t>(std::max<int32_t>(0, *solarChargerOutput));
         targetOutput = dcPowerBusToInverterAc(targetOutput);
     }
+#endif
 
     _calculationBackoffMs = 1 * 1000;
     updateInverterLimits(targetOutput, sBatteryPoweredFilter, sBatteryPoweredExpression);
@@ -558,8 +575,13 @@ uint16_t PowerLimiterClass::calcTargetOutput() const
     auto targetConsumption = config.PowerLimiter.TargetPowerConsumption;
     auto baseLoad = config.PowerLimiter.BaseLoadLimit;
 
+#if OPENDTU_FEATURE_POWERMETER
     auto meterValid = PowerMeter.isDataValid();
     auto meterValue = PowerMeter.getPowerTotal();
+#else
+    auto meterValid = false;
+    float meterValue = 0;
+#endif
 
     DTU_LOGD("targeting %d W, base load is %u W, power meter reads %.1f W (%s)",
             targetConsumption, baseLoad, meterValue,
@@ -726,15 +748,19 @@ uint16_t PowerLimiterClass::calcPowerBusUsage(uint16_t powerRequested) const
     // desired is if the battery is over the Full Solar Passthrough Threshold.
     // In this case battery-powered inverters should produce power and the PSU
     // will shut down as a consequence.
+#if OPENDTU_FEATURE_GRIDCHARGER
     if (!isFullSolarPassthroughActive() && GridCharger.getAutoPowerStatus()) {
         DTU_LOGD("DC power bus usage blocked by GridCharger auto power");
         return 0;
     }
+#endif
 
+#if OPENDTU_FEATURE_BATTERY
     if (Battery.getStats()->getImmediateChargingRequest()) {
         DTU_LOGD("DC power bus usage blocked by immediate charging request");
         return 0;
     }
+#endif
 
     if (_batteryState == BatteryState::STOP) {
         DTU_LOGD("DC power bus usage blocked by battery below the stop threshold");
@@ -797,7 +823,10 @@ uint16_t PowerLimiterClass::getSolarPassthroughPower() const
         return 0;
     }
 
-    std::optional<float> oSolarChargerOutput = SolarCharger.getStats()->getOutputPowerWatts();
+    std::optional<float> oSolarChargerOutput = std::nullopt;
+#if OPENDTU_FEATURE_SOLARCHARGER
+    oSolarChargerOutput = SolarCharger.getStats()->getOutputPowerWatts();
+#endif
 
     // This value can be negative if a charge controller with a load output is used
     // and the load is consuming more power than the charge controller is producing.
@@ -821,6 +850,9 @@ float PowerLimiterClass::getBatteryInvertersOutputAcWatts() const
 
 std::optional<uint16_t> PowerLimiterClass::getBatteryDischargeLimit() const
 {
+#if !OPENDTU_FEATURE_BATTERY
+    return 0;
+#else
     if ((_batteryState == BatteryState::STOP) || (_batteryState == BatteryState::NO_DISCHARGE)) { return 0; }
 
     auto currentLimit = Battery.getDischargeCurrentLimit();
@@ -838,6 +870,7 @@ std::optional<uint16_t> PowerLimiterClass::getBatteryDischargeLimit() const
     }
 
     return inverter.first * currentLimit;
+#endif
 }
 
 bool PowerLimiterClass::testThreshold(float socThreshold, float voltThreshold,
@@ -845,6 +878,7 @@ bool PowerLimiterClass::testThreshold(float socThreshold, float voltThreshold,
 {
     auto const& config = Configuration.get();
 
+#if OPENDTU_FEATURE_BATTERY
     // prefer SoC provided through battery interface, unless disabled by user
     auto stats = Battery.getStats();
     if (!config.PowerLimiter.IgnoreSoc
@@ -854,6 +888,7 @@ bool PowerLimiterClass::testThreshold(float socThreshold, float voltThreshold,
             && stats->getSoCAgeSeconds() < 60) {
               return compare(stats->getSoC(), socThreshold);
     }
+#endif
 
     // use voltage threshold as fallback
     if (voltThreshold <= 0.0) { return false; }
@@ -941,6 +976,10 @@ bool PowerLimiterClass::isSolarPassThroughEnabled() const
     // solar passthrough only applies to setups with battery-powered inverters
     if (!usesBatteryPoweredInverter()) { return false; }
 
+#if !OPENDTU_FEATURE_SOLARCHARGER
+    return false;
+#endif
+
     // solarcharger is needed for solar passthrough
     if (!config.SolarCharger.Enabled) { return false; }
 
@@ -972,3 +1011,5 @@ bool PowerLimiterClass::isGovernedBatteryPoweredInverterProducing() const
     }
     return false;
 }
+
+#endif // OPENDTU_FEATURE_POWERLIMITER

@@ -2,12 +2,19 @@
 /*
  * Copyright (C) 2023 Malte Schmidt and others
  */
-#include <battery/Controller.h>
 #include <gridcharger/huawei/Provider.h>
 #include <gridcharger/huawei/MCP2515.h>
 #include <gridcharger/huawei/TWAI.h>
+#include "FeatureFlags.h"
+#if OPENDTU_FEATURE_BATTERY
+#include <battery/Controller.h>
+#endif
+#if OPENDTU_FEATURE_POWERMETER
 #include <powermeter/Controller.h>
+#endif
+#if OPENDTU_FEATURE_POWERLIMITER
 #include <PowerLimiter.h>
+#endif
 #include <Configuration.h>
 #include <LogHelper.h>
 #include <MqttSettings.h>
@@ -178,6 +185,7 @@ void Provider::loop()
     // ***********************
     // Emergency charge
     // ***********************
+#if OPENDTU_FEATURE_BATTERY
     auto stats = Battery.getStats();
     if (!_batteryEmergencyCharging && config.GridCharger.EmergencyChargeEnabled && stats->getImmediateChargingRequest()) {
         if (!oOutputVoltage) {
@@ -207,6 +215,7 @@ void Provider::loop()
         }
         return;
     }
+#endif
 
     // ***********************
     // Automatic power control
@@ -229,7 +238,13 @@ void Provider::loop()
             _autoPowerEnabledCounter = 10;
         }
 
-        if (PowerLimiter.isGovernedBatteryPoweredInverterProducing()) {
+        if (
+#if OPENDTU_FEATURE_POWERLIMITER
+                PowerLimiter.isGovernedBatteryPoweredInverterProducing()
+#else
+                false
+#endif
+        ) {
             _setParameter(0.0, Setting::OnlineCurrent);
             // Don't run auto mode for a second now. Otherwise we may send too much over the CAN bus
             _autoModeBlockedTillMillis = millis() + 1000;
@@ -237,6 +252,7 @@ void Provider::loop()
             return;
         }
 
+        #if OPENDTU_FEATURE_POWERMETER
         if (PowerMeter.getLastUpdate() > _lastPowerMeterUpdateReceivedMillis &&
                 _autoPowerEnabledCounter > 0) {
             // We have received a new PowerMeter value. Also we're _autoPowerEnabled
@@ -256,6 +272,7 @@ void Provider::loop()
                 inputPowerDiff, newOutputPowerTarget, *oOutputPower);
 
             // Check whether the battery SoC limit setting is enabled
+            #if OPENDTU_FEATURE_BATTERY
             if (config.Battery.Enabled && config.GridCharger.AutoPowerBatterySoCLimitsEnabled) {
                 uint8_t _batterySoC = Battery.getStats()->getSoC();
                 // Sets power limit to 0 if the BMS reported SoC reaches or exceeds the user configured value
@@ -265,6 +282,7 @@ void Provider::loop()
                             _batterySoC, config.GridCharger.AutoPowerStopBatterySoCThreshold, newOutputPowerTarget);
                 }
             }
+            #endif
 
             if (newOutputPowerTarget > config.GridCharger.AutoPowerLowerPowerLimit) {
                 // Check if the output power has dropped below the lower limit (i.e. the battery is full)
@@ -287,7 +305,10 @@ void Provider::loop()
                 float calculatedCurrent = newOutputPowerTarget / *oOutputVoltage;
 
                 // Limit output current to value requested by BMS
-                float permissibleCurrent = stats->getChargeCurrentLimit() - (stats->getChargeCurrent() - *oOutputCurrent); // BMS current limit - current from other sources, e.g. Victron MPPT charger
+                float permissibleCurrent = calculatedCurrent;
+                #if OPENDTU_FEATURE_BATTERY
+                permissibleCurrent = stats->getChargeCurrentLimit() - (stats->getChargeCurrent() - *oOutputCurrent); // BMS current limit - current from other sources, e.g. Victron MPPT charger
+                #endif
                 float outputCurrent = std::min(calculatedCurrent, permissibleCurrent);
                 outputCurrent = outputCurrent > 0 ? outputCurrent : 0;
 
@@ -306,6 +327,7 @@ void Provider::loop()
                 _setParameter(0.0, Setting::OnlineCurrent);
             }
         }
+        #endif
     }
 }
 

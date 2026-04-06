@@ -2,13 +2,19 @@
 /*
  * Copyright (C) 2023-2026 Thomas Basler and others
  */
+#include "FeatureFlags.h"
+#if OPENDTU_FEATURE_DISPLAY
 #include "Display_Graphic.h"
 #include "Configuration.h"
 #include "Datastore.h"
 #include "I18n.h"
 #include "PinMapping.h"
+#if OPENDTU_FEATURE_BATTERY
 #include <battery/Controller.h>
+#endif
+#if OPENDTU_FEATURE_POWERMETER
 #include <powermeter/Controller.h>
+#endif
 #include <NetworkSettings.h>
 #include <map>
 #include <time.h>
@@ -335,8 +341,15 @@ void DisplayGraphicClass::loop()
     // three-second slots is used to NOT overwrite the total inverter energy.
     bool timing = (_mExtra % 9) >= 3;
 
-    bool powerMeterAvailable = Configuration.get().PowerMeter.Enabled;
-    bool batteryAvailable = Configuration.get().Battery.Enabled && Battery.getStats()->isSoCValid();
+    bool powerMeterAvailable = false;
+#if OPENDTU_FEATURE_POWERMETER
+    powerMeterAvailable = Configuration.get().PowerMeter.Enabled;
+#endif
+
+    bool batteryAvailable = false;
+#if OPENDTU_FEATURE_BATTERY
+    batteryAvailable = Configuration.get().Battery.Enabled && Battery.getStats()->isSoCValid();
+#endif
 
     if (showText && timing && !displayPowerSave && (powerMeterAvailable || batteryAvailable)) {
         // erase the third line and print the battery SoC or power meter value instead.
@@ -366,13 +379,16 @@ void DisplayGraphicClass::loop()
         }
 
         if (showPowerMeter) {
+#if OPENDTU_FEATURE_POWERMETER
             auto acPower = PowerMeter.getPowerTotal();
             if (acPower > 999) {
                 snprintf(_fmtText, sizeof(_fmtText), _i18n_meter_power_kw.c_str(), (acPower / 1000));
             } else {
                 snprintf(_fmtText, sizeof(_fmtText), _i18n_meter_power_w.c_str(), acPower);
             }
+#endif
         } else {
+#if OPENDTU_FEATURE_BATTERY
             auto precision = Battery.getStats()->getSoCPrecision();
             float soc = Battery.getStats()->getSoC();
 
@@ -383,6 +399,7 @@ void DisplayGraphicClass::loop()
             } else {
                 snprintf(_fmtText, sizeof(_fmtText), _i18n_battery_soc_0_fractions.c_str(), soc);
             }
+#endif
         }
 
         printText(_fmtText, 2);
@@ -413,3 +430,4 @@ void DisplayGraphicClass::setStatus(const bool turnOn)
 }
 
 DisplayGraphicClass Display;
+#endif

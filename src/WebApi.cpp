@@ -17,10 +17,13 @@ WebApiClass::WebApiClass()
 
 void WebApiClass::init(Scheduler& scheduler)
 {
+#if OPENDTU_FEATURE_WEBAPI_DEVICE
     _webApiDevice.init(_server, scheduler);
+#endif
     _webApiDevInfo.init(_server, scheduler);
     _webApiDtu.init(_server, scheduler);
     _webApiEventlog.init(_server, scheduler);
+    _webApiFeatures.init(_server, scheduler);
     _webApiFile.init(_server, scheduler);
     _webApiFirmware.init(_server, scheduler);
     _webApiGridprofile.init(_server, scheduler);
@@ -29,24 +32,46 @@ void WebApiClass::init(Scheduler& scheduler)
     _webApiLimit.init(_server, scheduler);
     _webApiLogging.init(_server, scheduler);
     _webApiMaintenance.init(_server, scheduler);
+#if OPENDTU_FEATURE_WEBAPI_MQTT
     _webApiMqtt.init(_server, scheduler);
+#endif
+#if OPENDTU_FEATURE_WEBAPI_NETWORK
     _webApiNetwork.init(_server, scheduler);
+#endif
+#if OPENDTU_FEATURE_WEBAPI_NTP
     _webApiNtp.init(_server, scheduler);
+#endif
     _webApiPower.init(_server, scheduler);
+#if OPENDTU_FEATURE_WEBAPI_PROMETHEUS
     _webApiPrometheus.init(_server, scheduler);
+#endif
     _webApiSecurity.init(_server, scheduler);
     _webApiSysstatus.init(_server, scheduler);
+#if OPENDTU_FEATURE_WEBAPP
     _webApiWebapp.init(_server, scheduler);
+#endif
     _webApiWsConsole.init(_server, scheduler);
     _webApiWsLive.init(_server, scheduler);
+#if OPENDTU_FEATURE_BATTERY
     _webApiBattery.init(_server, scheduler);
+#endif
+#if OPENDTU_FEATURE_POWERMETER
     _webApiPowerMeter.init(_server, scheduler);
+#endif
+#if OPENDTU_FEATURE_POWERLIMITER
     _webApiPowerLimiter.init(_server, scheduler);
+#endif
+#if OPENDTU_FEATURE_SOLARCHARGER
     _webApiWsSolarChargerLive.init(_server, scheduler);
     _webApiSolarCharger.init(_server, scheduler);
+#endif
+#if OPENDTU_FEATURE_GRIDCHARGER
     _webApiWsGridChargerLive.init(_server, scheduler);
     _webApiGridCharger.init(_server, scheduler);
+#endif
+#if OPENDTU_FEATURE_BATTERY
     _webApiWsBatteryLive.init(_server, scheduler);
+#endif
 
     _server.begin();
 }
@@ -55,9 +80,15 @@ void WebApiClass::reload()
 {
     _webApiWsConsole.reload();
     _webApiWsLive.reload();
+#if OPENDTU_FEATURE_BATTERY
     _webApiWsBatteryLive.reload();
+#endif
+#if OPENDTU_FEATURE_SOLARCHARGER
     _webApiWsSolarChargerLive.reload();
+#endif
+#if OPENDTU_FEATURE_GRIDCHARGER
     _webApiWsGridChargerLive.reload();
+#endif
 }
 
 bool WebApiClass::checkCredentials(AsyncWebServerRequest* request)

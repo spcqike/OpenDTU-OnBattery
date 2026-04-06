@@ -11,6 +11,8 @@
 #include "defaults.h"
 #include "Utils.h"
 
+#if OPENDTU_FEATURE_BATTERY
+
 #undef TAG
 static const char* TAG = "webapi";
 
@@ -148,3 +150,5 @@ void WebApiWsBatteryLiveClass::onLivedataStatus(AsyncWebServerRequest* request)
         WebApi.sendTooManyRequests(request);
     }
 }
+
+#endif // OPENDTU_FEATURE_BATTERY

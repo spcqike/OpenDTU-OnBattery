@@ -3,7 +3,10 @@
  * Copyright (C) 2024-2026 Thomas Basler and others
  */
 #include "RestartHelper.h"
+#include "FeatureFlags.h"
+#if OPENDTU_FEATURE_DISPLAY
 #include "Display_Graphic.h"
+#endif
 #include "Led_Single.h"
 #include <Esp.h>
 
@@ -29,7 +32,9 @@ void RestartHelperClass::loop()
 {
     if (_rebootTask.isFirstIteration()) {
         LedSingle.turnAllOff();
+#if OPENDTU_FEATURE_DISPLAY
         Display.setStatus(false);
+#endif
     } else {
         ESP.restart();
     }

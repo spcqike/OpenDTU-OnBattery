@@ -155,8 +155,11 @@ export default defineComponent({
                 .then((response) => handleResponse(response, this.$emitter, this.$router))
                 .then((data) => {
                     this.timezoneList = data;
-                    this.timezoneLoading = false;
                     this.getNtpConfig();
+                })
+                .catch(() => {})
+                .finally(() => {
+                    this.timezoneLoading = false;
                 });
         },
         getNtpConfig() {
@@ -166,6 +169,9 @@ export default defineComponent({
                 .then((data) => {
                     this.ntpConfigList = data;
                     this.timezoneSelect = this.ntpConfigList.ntp_timezone_descr;
+                })
+                .catch(() => {})
+                .finally(() => {
                     this.dataLoading = false;
                 });
         },
@@ -175,6 +181,9 @@ export default defineComponent({
                 .then((response) => handleResponse(response, this.$emitter, this.$router))
                 .then((data) => {
                     this.mcuTime = new Date(data.year, data.month - 1, data.day, data.hour, data.minute, data.second);
+                })
+                .catch(() => {})
+                .finally(() => {
                     this.dataLoading = false;
                 });
         },

@@ -314,6 +314,7 @@ import FormFooter from '@/components/FormFooter.vue';
 import InputElement from '@/components/InputElement.vue';
 import HttpRequestSettings from '@/components/HttpRequestSettings.vue';
 import { handleResponse, authHeader } from '@/utils/authentication';
+import { features } from '@/utils/features';
 import type { PowerMeterConfig } from '@/types/PowerMeterConfig';
 
 export default defineComponent({
@@ -329,6 +330,7 @@ export default defineComponent({
         return {
             dataLoading: true,
             powerMeterConfigList: {} as PowerMeterConfig,
+            features,
             powerMeterSourceList: [
                 { key: 0, value: this.$t('powermeteradmin.typeMQTT') },
                 { key: 1, value: this.$t('powermeteradmin.typeSDM1ph') },
@@ -338,7 +340,16 @@ export default defineComponent({
                 { key: 5, value: this.$t('powermeteradmin.typeSMAHM2') },
                 { key: 6, value: this.$t('powermeteradmin.typeHTTP_SML') },
                 { key: 7, value: this.$t('powermeteradmin.typeUDP_VICTRON') },
-            ],
+            ].filter((source) => {
+                if (source.key === 0) return features.providers.powermeter.mqtt;
+                if (source.key === 1 || source.key === 2) return features.providers.powermeter.sdm;
+                if (source.key === 3) return features.providers.powermeter.http_json;
+                if (source.key === 4) return features.providers.powermeter.serial_sml;
+                if (source.key === 5) return features.providers.powermeter.smahm2;
+                if (source.key === 6) return features.providers.powermeter.http_sml;
+                if (source.key === 7) return features.providers.powermeter.modbus_udp_victron;
+                return true;
+            }),
             unitTypeList: [
                 { key: 1, value: 'mW' },
                 { key: 0, value: 'W' },

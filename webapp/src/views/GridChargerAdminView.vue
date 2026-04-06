@@ -269,6 +269,7 @@ import FormFooter from '@/components/FormFooter.vue';
 import InputElement from '@/components/InputElement.vue';
 import type { GridChargerConfig } from '@/types/GridChargerConfig';
 import { authHeader, handleResponse } from '@/utils/authentication';
+import { features } from '@/utils/features';
 import { defineComponent } from 'vue';
 
 export default defineComponent({
@@ -283,13 +284,18 @@ export default defineComponent({
         return {
             dataLoading: true,
             gridChargerConfigList: {} as GridChargerConfig,
+            features,
             alertMessage: '',
             alertType: 'info',
             showAlert: false,
             providerTypeList: [
                 { key: 0, value: 'Huawei' },
                 { key: 1, value: 'Trucki' },
-            ],
+            ].filter((provider) => {
+                if (provider.key === 0) return features.providers.gridcharger.huawei;
+                if (provider.key === 1) return features.providers.gridcharger.trucki;
+                return true;
+            }),
             frequencyTypeList: [
                 { key: 8, value: 8000000 },
                 { key: 16, value: 16000000 },

@@ -4,15 +4,24 @@
  */
 #include "WebApi_ws_live.h"
 #include "Datastore.h"
+#include "FeatureFlags.h"
 #include "Utils.h"
 #include "WebApi.h"
+#if OPENDTU_FEATURE_BATTERY
 #include <battery/Controller.h>
 #include <battery/Stats.h>
+#endif
+#if OPENDTU_FEATURE_GRIDCHARGER
 #include <gridcharger/Controller.h>
 #include <gridcharger/Stats.h>
+#endif
+#if OPENDTU_FEATURE_POWERMETER
 #include <powermeter/Controller.h>
+#endif
 #include "defaults.h"
+#if OPENDTU_FEATURE_SOLARCHARGER
 #include <solarcharger/Controller.h>
+#endif
 #include <AsyncJson.h>
 
 #undef TAG
@@ -83,9 +92,11 @@ void WebApiWsLiveClass::generateOnBatteryJsonResponse(JsonVariant& root, bool al
     auto const& config = Configuration.get();
     auto constexpr halfOfAllMillis = std::numeric_limits<uint32_t>::max() / 2;
 
+    auto solarchargerObj = root["solarcharger"].to<JsonObject>();
+    solarchargerObj["enabled"] = false;
+#if OPENDTU_FEATURE_SOLARCHARGER
     auto solarChargerAge = SolarCharger.getStats()->getAgeMillis();
     if (all || (solarChargerAge > 0 && (millis() - _lastPublishSolarCharger) > solarChargerAge)) {
-        auto solarchargerObj = root["solarcharger"].to<JsonObject>();
         solarchargerObj["enabled"] = config.SolarCharger.Enabled;
 
         if (config.SolarCharger.Enabled) {
@@ -116,10 +127,13 @@ void WebApiWsLiveClass::generateOnBatteryJsonResponse(JsonVariant& root, bool al
 
         if (!all) { _lastPublishSolarCharger = millis(); }
     }
+#endif
 
+    auto gridChargerObj = root["gridcharger"].to<JsonObject>();
+    gridChargerObj["enabled"] = false;
+#if OPENDTU_FEATURE_GRIDCHARGER
     auto gridChargerStats = GridCharger.getStats();
     if (all || (gridChargerStats->getLastUpdate() - _lastPublishGridCharger) < halfOfAllMillis ) {
-        auto gridChargerObj = root["gridcharger"].to<JsonObject>();
         gridChargerObj["enabled"] = config.GridCharger.Enabled;
 
         if (config.GridCharger.Enabled) {
@@ -130,10 +144,13 @@ void WebApiWsLiveClass::generateOnBatteryJsonResponse(JsonVariant& root, bool al
 
         if (!all) { _lastPublishGridCharger = millis(); }
     }
+#endif
 
+    auto batteryObj = root["battery"].to<JsonObject>();
+    batteryObj["enabled"] = false;
+#if OPENDTU_FEATURE_BATTERY
     auto spStats = Battery.getStats();
     if (all || spStats->updateAvailable(_lastPublishBattery)) {
-        auto batteryObj = root["battery"].to<JsonObject>();
         batteryObj["enabled"] = config.Battery.Enabled;
 
         if (config.Battery.Enabled) {
@@ -156,9 +173,12 @@ void WebApiWsLiveClass::generateOnBatteryJsonResponse(JsonVariant& root, bool al
 
         if (!all) { _lastPublishBattery = millis(); }
     }
+#endif
 
+    auto powerMeterObj = root["power_meter"].to<JsonObject>();
+    powerMeterObj["enabled"] = false;
+#if OPENDTU_FEATURE_POWERMETER
     if (all || (PowerMeter.getLastUpdate() - _lastPublishPowerMeter) < halfOfAllMillis) {
-        auto powerMeterObj = root["power_meter"].to<JsonObject>();
         powerMeterObj["enabled"] = config.PowerMeter.Enabled;
 
         if (config.PowerMeter.Enabled) {
@@ -167,6 +187,7 @@ void WebApiWsLiveClass::generateOnBatteryJsonResponse(JsonVariant& root, bool al
 
         if (!all) { _lastPublishPowerMeter = millis(); }
     }
+#endif
 }
 
 void WebApiWsLiveClass::sendOnBatteryStats()

@@ -50,6 +50,12 @@
     "Error": {
         "Oops": "Ups!"
     },
+    "featuredisabled": {
+        "Title": "Feature deaktiviert",
+        "Message": "Der aufgerufene Bereich ist in dieser Firmware nicht verfügbar, weil {feature} deaktiviert ist.",
+        "Target": "Angeforderter Pfad: {path}",
+        "BackHome": "Zurück zur Startseite"
+    },
     "localeswitcher": {
         "Dark": "Dunkel",
         "Light": "Hell",

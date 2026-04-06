@@ -4,34 +4,53 @@
  */
 #include "Configuration.h"
 #include "Datastore.h"
+#include "FeatureFlags.h"
+#if OPENDTU_FEATURE_DISPLAY
 #include "Display_Graphic.h"
+#endif
 #include "I18n.h"
 #include "InverterSettings.h"
 #include "Led_Single.h"
 #include "Logging.h"
 #include "MessageOutput.h"
 #include "SerialPortManager.h"
-#include <battery/Controller.h>
-#include <gridcharger/Controller.h>
 #include "MqttHandleDtu.h"
+#if OPENDTU_FEATURE_MQTT_HASS
 #include "MqttHandleHass.h"
+#endif
 #include "MqttHandleInverter.h"
 #include "MqttHandleInverterTotal.h"
+#if OPENDTU_FEATURE_POWERLIMITER
 #include "MqttHandlePowerLimiter.h"
+#if OPENDTU_FEATURE_MQTT_HASS
 #include "MqttHandlePowerLimiterHass.h"
+#endif
+#endif
 #include "MqttSettings.h"
 #include "NetworkSettings.h"
 #include "NtpSettings.h"
 #include "PinMapping.h"
+#if OPENDTU_FEATURE_POWERLIMITER
+#include "PowerLimiter.h"
+#endif
 #include "RestartHelper.h"
 #include "Scheduler.h"
 #include "SunPosition.h"
 #include "Utils.h"
 #include "WebApi.h"
+#if OPENDTU_FEATURE_BATTERY
+#include <battery/Controller.h>
+#endif
+#if OPENDTU_FEATURE_GRIDCHARGER
+#include <gridcharger/Controller.h>
+#endif
+#if OPENDTU_FEATURE_POWERMETER
 #include <powermeter/Controller.h>
-#include "PowerLimiter.h"
+#endif
 #include "defaults.h"
+#if OPENDTU_FEATURE_SOLARCHARGER
 #include <solarcharger/Controller.h>
+#endif
 #include <Arduino.h>
 #include <LittleFS.h>
 #include <TaskScheduler.h>
@@ -81,11 +100,13 @@ void setup()
             Configuration.get().Cfg.Version, CONFIG_VERSION);
         Configuration.migrate();
     }
+#if OPENDTU_FEATURE_BATTERY || OPENDTU_FEATURE_POWERMETER || OPENDTU_FEATURE_SOLARCHARGER || OPENDTU_FEATURE_GRIDCHARGER || OPENDTU_FEATURE_POWERLIMITER
     if (Configuration.get().Cfg.VersionOnBattery != CONFIG_VERSION_ONBATTERY) {
         ESP_LOGI(TAG, "Migrating OpenDTU-OnBattery-specific config from %d to %d",
             Configuration.get().Cfg.VersionOnBattery, CONFIG_VERSION_ONBATTERY);
         Configuration.migrateOnBattery();
     }
+#endif
 
     // Set configured log levels
     Logging.applyLogLevels();
@@ -124,17 +145,25 @@ void setup()
     MqttHandleDtu.init(scheduler);
     MqttHandleInverter.init(scheduler);
     MqttHandleInverterTotal.init(scheduler);
+#if OPENDTU_FEATURE_MQTT_HASS
     MqttHandleHass.init(scheduler);
+#endif
+#if OPENDTU_FEATURE_POWERLIMITER
     MqttHandlePowerLimiter.init(scheduler);
+#if OPENDTU_FEATURE_MQTT_HASS
     MqttHandlePowerLimiterHass.init(scheduler);
+#endif
+#endif
 
     // Initialize WebApi
     ESP_LOGI(TAG, "Initializing WebApi...");
     WebApi.init(scheduler);
 
     // Initialize Display
+#if OPENDTU_FEATURE_DISPLAY
     ESP_LOGI(TAG, "Initializing Display...");
     Display.init(scheduler);
+#endif
 
     // Initialize Single LEDs
     ESP_LOGI(TAG, "Initializing LEDs...");
@@ -146,11 +175,21 @@ void setup()
     RestartHelper.init(scheduler);
 
     // OpenDTU-OnBattery-specific initializations go below
+#if OPENDTU_FEATURE_SOLARCHARGER
     SolarCharger.init(scheduler);
+#endif
+#if OPENDTU_FEATURE_POWERMETER
     PowerMeter.init(scheduler);
+#endif
+#if OPENDTU_FEATURE_POWERLIMITER
     PowerLimiter.init(scheduler);
+#endif
+#if OPENDTU_FEATURE_GRIDCHARGER
     GridCharger.init(scheduler);
+#endif
+#if OPENDTU_FEATURE_BATTERY
     Battery.init(scheduler);
+#endif
 
     ESP_LOGI(TAG, "Startup complete");
 }
