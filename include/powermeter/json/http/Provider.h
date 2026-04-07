@@ -13,7 +13,8 @@
 #include <powermeter/Provider.h>
 
 using Auth_t = HttpRequestConfig::Auth;
-using Unit_t = PowerMeterHttpJsonValue::Unit;
+using PowerUnit_t = PowerMeterHttpJsonValue::Unit;
+using VoltageUnit_t = PowerMeterHttpJsonValue::VoltageUnit;
 
 namespace PowerMeters::Json::Http {
 

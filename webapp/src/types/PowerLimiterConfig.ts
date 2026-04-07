@@ -31,6 +31,9 @@ export interface PowerLimiterInverterConfig {
     allow_standby: boolean;
     lower_power_limit: number;
     upper_power_limit: number;
+    voltage_limit_enabled: boolean;
+    voltage_limit_phase: number;
+    voltage_limit_factor: number;
 }
 
 export interface PowerLimiterConfig {

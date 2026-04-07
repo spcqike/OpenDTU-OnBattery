@@ -120,6 +120,9 @@ struct POWERMETER_HTTP_JSON_VALUE_T {
     Unit PowerUnit;
 
     bool SignInverted;
+    char VoltageJsonPath[MQTT_MAX_JSON_PATH_STRLEN + 1];
+    enum VoltageUnit { Volts = 0, MilliVolts = 1 };
+    VoltageUnit VoltagePathUnit;
 };
 using PowerMeterHttpJsonValue = struct POWERMETER_HTTP_JSON_VALUE_T;
 
@@ -150,6 +153,10 @@ struct POWERLIMITER_INVERTER_CONFIG_T {
     bool AllowStandby;
     uint16_t LowerPowerLimit;
     uint16_t UpperPowerLimit;
+    bool VoltageLimitEnabled;
+    enum class VoltageLimitPhase_t : uint8_t { L1 = 0, L2 = 1, L3 = 2 };
+    VoltageLimitPhase_t VoltageLimitPhase;
+    float VoltageLimitFactor;
 
     enum InverterPowerSource { Battery = 0, Solar = 1, SmartBuffer = 2 };
     InverterPowerSource PowerSource;

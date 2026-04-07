@@ -2,6 +2,7 @@
 #pragma once
 
 #include <atomic>
+#include <optional>
 #include <Configuration.h>
 #include <powermeter/DataPoints.h>
 
@@ -29,6 +30,9 @@ public:
     virtual bool isDataValid() const;
 
     float getPowerTotal() const;
+    std::optional<float> getVoltageL1() const;
+    std::optional<float> getVoltageL2() const;
+    std::optional<float> getVoltageL3() const;
     uint32_t getLastUpdate() const { return _dataCurrent.getLastUpdate(); }
     void mqttLoop() const;
 

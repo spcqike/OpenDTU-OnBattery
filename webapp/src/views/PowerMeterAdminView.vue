@@ -85,7 +85,7 @@
                             v-model="mqtt.json_path"
                             type="text"
                             maxlength="256"
-                            :tooltip="$t('powermeteradmin.valueJsonPathDescription')"
+                            :tooltip="$t('powermeteradmin.valuePowerJsonPathDescription')"
                             wide
                         />
 
@@ -188,11 +188,11 @@
                             />
 
                             <InputElement
-                                :label="$t('powermeteradmin.valueJsonPath')"
+                                :label="$t('powermeteradmin.valuePowerJsonPath')"
                                 v-model="httpJson.json_path"
                                 type="text"
                                 maxlength="256"
-                                :tooltip="$t('powermeteradmin.valueJsonPathDescription')"
+                                :tooltip="$t('powermeteradmin.valuePowerJsonPathDescription')"
                                 wide
                             />
 
@@ -216,6 +216,28 @@
                                 type="checkbox"
                                 wide
                             />
+
+                            <InputElement
+                                :label="$t('powermeteradmin.valueVoltageJsonPath')"
+                                v-model="httpJson.voltage_json_path"
+                                type="text"
+                                maxlength="256"
+                                :tooltip="$t('powermeteradmin.valueVoltageJsonPathDescription')"
+                                wide
+                            />
+
+                            <div class="row mb-3">
+                                <label for="voltage_unit" class="col-sm-4 col-form-label">
+                                    {{ $t('powermeteradmin.valueVoltageUnit') }}
+                                </label>
+                                <div class="col-sm-8">
+                                    <select id="voltage_unit" class="form-select" v-model="httpJson.voltage_unit">
+                                        <option v-for="u in voltageUnitTypeList" :key="u.key" :value="u.key">
+                                            {{ u.value }}
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
                         </template>
                     </CardElement>
 
@@ -354,6 +376,10 @@ export default defineComponent({
                 { key: 1, value: 'mW' },
                 { key: 0, value: 'W' },
                 { key: 2, value: 'kW' },
+            ],
+            voltageUnitTypeList: [
+                { key: 0, value: 'V' },
+                { key: 1, value: 'mV' },
             ],
             alertMessage: '',
             alertType: 'info',

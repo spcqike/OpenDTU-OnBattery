@@ -21,12 +21,12 @@ uint16_t PowerLimiterSmartBufferInverter::getMaxIncreaseWatts() const
     if (!isEligible()) { return 0; }
 
     if (!isProducing()) {
-        return getConfiguredMaxPowerWatts();
+        return getEffectiveMaxPowerWatts();
     }
 
     // The inverter can produce more than the set limit and as such
     // also more than the configured max power.
-    if (getCurrentOutputAcWatts() >= getConfiguredMaxPowerWatts()) { return 0; }
+    if (getCurrentOutputAcWatts() >= getEffectiveMaxPowerWatts()) { return 0; }
 
     // The limit is already at the max or higher.
     if (getCurrentLimitWatts() >= getInverterMaxPowerWatts()) { return 0; }
@@ -34,7 +34,7 @@ uint16_t PowerLimiterSmartBufferInverter::getMaxIncreaseWatts() const
     // when overscaling is in use we must not substract the current limit
     // because it might be scaled and higher than the configured max power.
     if (overscalingEnabled()) {
-        uint16_t maxOutputIncrease = getConfiguredMaxPowerWatts() - getCurrentOutputAcWatts();
+        uint16_t maxOutputIncrease = getEffectiveMaxPowerWatts() - getCurrentOutputAcWatts();
         uint16_t maxLimitIncrease = getInverterMaxPowerWatts() - getCurrentLimitWatts();
 
         // constrains the increase to the limit of the inverter.
@@ -44,13 +44,13 @@ uint16_t PowerLimiterSmartBufferInverter::getMaxIncreaseWatts() const
     // this should not happen, but we want to
     // be robust in case something else set a limit on the inverter (or in
     // case we did something wrong...) or overscaling was in use but then disabled.
-    if (getCurrentLimitWatts() >= getConfiguredMaxPowerWatts()) { return 0; }
+    if (getCurrentLimitWatts() >= getEffectiveMaxPowerWatts()) { return 0; }
 
     // we must not substract the current AC output here, but the current
     // limit value, so we avoid trying to produce even more even if the
     // inverter is already at the maximum limit value (the actual AC
     // output may be less than the inverter's current power limit).
-    return getConfiguredMaxPowerWatts() - getCurrentLimitWatts();
+    return getEffectiveMaxPowerWatts() - getCurrentLimitWatts();
 }
 
 uint16_t PowerLimiterSmartBufferInverter::applyReduction(uint16_t reduction, bool allowStandby)

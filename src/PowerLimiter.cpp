@@ -25,6 +25,7 @@
 #undef TAG
 static const char* TAG = "dynamicPowerLimiter";
 static const char* SUBTAG = "Controller";
+static constexpr float kVoltageLimitUpperVolts = 252.0f;
 
 static auto sBatteryPoweredFilter = [](PowerLimiterInverter const& inv) {
     return inv.isBatteryPowered();
@@ -43,6 +44,20 @@ static auto sSmartBufferPoweredFilter = [](PowerLimiterInverter const& inv) {
 };
 
 static const char sSmartBufferPoweredExpression[] = "smart-buffer-powered";
+
+static char const* phaseToString(PowerLimiterInverterConfig::VoltageLimitPhase_t phase)
+{
+    switch (phase) {
+        case PowerLimiterInverterConfig::VoltageLimitPhase_t::L1:
+            return "L1";
+        case PowerLimiterInverterConfig::VoltageLimitPhase_t::L2:
+            return "L2";
+        case PowerLimiterInverterConfig::VoltageLimitPhase_t::L3:
+            return "L3";
+        default:
+            return "<unknown>";
+    }
+}
 
 #if OPENDTU_FEATURE_POWERLIMITER
 PowerLimiterClass PowerLimiter;
@@ -394,6 +409,8 @@ void PowerLimiterClass::loop()
             config.PowerLimiter.ConductionLosses);
     }
 
+    updateInverterVoltageLimits();
+
     uint16_t inverterTotalPower = calcTargetOutput();
 
     auto totalAllowance = config.PowerLimiter.TotalUpperPowerLimit;
@@ -519,6 +536,8 @@ void PowerLimiterClass::unconditionalFullSolarPassthrough()
     if ((now - _lastCalculation) < _calculationBackoffMs) { return; }
     _lastCalculation = now;
 
+    updateInverterVoltageLimits();
+
     for (auto const& upInv : _inverters) {
         if (!upInv->isEligible()) { continue; }
         if (!upInv->isBatteryPowered()) { upInv->setMaxOutput(); }
@@ -640,6 +659,73 @@ uint16_t PowerLimiterClass::calcTargetOutput() const
     if (targetOutput < 0) { return 0; }
 
     return static_cast<uint16_t>(targetOutput);
+}
+
+void PowerLimiterClass::updateInverterVoltageLimits()
+{
+    for (auto& upInv : _inverters) {
+        upInv->setDynamicUpperPowerLimitWatts(calculateVoltageLimitedMaxPowerWatts(*upInv));
+    }
+}
+
+std::optional<uint16_t> PowerLimiterClass::calculateVoltageLimitedMaxPowerWatts(PowerLimiterInverter const& inverter) const
+{
+    if (!inverter.isVoltageLimitEnabled()) { return std::nullopt; }
+
+    auto const phase = inverter.getVoltageLimitPhase();
+    auto const phaseLabel = phaseToString(phase);
+
+    std::optional<float> oPhaseVoltage = std::nullopt;
+    switch (phase) {
+        case PowerLimiterInverterConfig::VoltageLimitPhase_t::L1:
+            oPhaseVoltage = PowerMeter.getVoltageL1();
+            break;
+        case PowerLimiterInverterConfig::VoltageLimitPhase_t::L2:
+            oPhaseVoltage = PowerMeter.getVoltageL2();
+            break;
+        case PowerLimiterInverterConfig::VoltageLimitPhase_t::L3:
+            oPhaseVoltage = PowerMeter.getVoltageL3();
+            break;
+        default:
+            break;
+    }
+
+    if (!oPhaseVoltage.has_value()) {
+        DTU_LOGW("inverter %s: no powermeter voltage for phase %s, skipping voltage-based limiting",
+                inverter.getSerialStr(), phaseLabel);
+        return std::nullopt;
+    }
+
+    auto const resistance = inverter.getVoltageLimitFactor();
+    if (resistance <= 0.0f) {
+        DTU_LOGW("inverter %s: invalid voltage limit factor R=%.5f, skipping voltage-based limiting",
+                inverter.getSerialStr(), resistance);
+        return std::nullopt;
+    }
+
+    auto allowedCurrent = (kVoltageLimitUpperVolts - *oPhaseVoltage) / resistance;
+    auto voltageBasedMaxPower = kVoltageLimitUpperVolts * allowedCurrent;
+    if (voltageBasedMaxPower < 0.0f) {
+        voltageBasedMaxPower = 0.0f;
+    }
+
+    auto roundedVoltageBasedMaxPower = static_cast<uint16_t>(std::min(
+            std::round(voltageBasedMaxPower),
+            static_cast<float>(std::numeric_limits<uint16_t>::max())));
+    auto effectiveMaxPower = std::min(inverter.getConfiguredMaxPowerWatts(), roundedVoltageBasedMaxPower);
+
+    if (DTU_LOG_IS_VERBOSE) {
+        DTU_LOGV("inverter %s voltage limit: phase %s, pm %.2f V, inv %.2f V / %.2f A, R %.5f, max %u W",
+                inverter.getSerialStr(),
+                phaseLabel,
+                *oPhaseVoltage,
+                inverter.getGridVoltage(),
+                inverter.getGridCurrent(),
+                resistance,
+                effectiveMaxPower);
+    }
+
+    return effectiveMaxPower;
 }
 
 /**

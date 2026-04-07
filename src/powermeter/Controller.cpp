@@ -122,6 +122,27 @@ float Controller::getPowerTotal() const
     return _upProvider->getPowerTotal();
 }
 
+std::optional<float> Controller::getVoltageL1() const
+{
+    std::lock_guard<std::mutex> l(_mutex);
+    if (!_upProvider) { return std::nullopt; }
+    return _upProvider->getVoltageL1();
+}
+
+std::optional<float> Controller::getVoltageL2() const
+{
+    std::lock_guard<std::mutex> l(_mutex);
+    if (!_upProvider) { return std::nullopt; }
+    return _upProvider->getVoltageL2();
+}
+
+std::optional<float> Controller::getVoltageL3() const
+{
+    std::lock_guard<std::mutex> l(_mutex);
+    if (!_upProvider) { return std::nullopt; }
+    return _upProvider->getVoltageL3();
+}
+
 uint32_t Controller::getLastUpdate() const
 {
     std::lock_guard<std::mutex> l(_mutex);

@@ -42,14 +42,14 @@ uint16_t PowerLimiterSolarInverter::getMaxIncreaseWatts() const
     }
 
     // The inverter produces the configured max power or more.
-    if (getCurrentOutputAcWatts() >= getConfiguredMaxPowerWatts()) { return 0; }
+    if (getCurrentOutputAcWatts() >= getEffectiveMaxPowerWatts()) { return 0; }
 
     // The limit is already at the max or higher.
     if (getCurrentLimitWatts() >= getInverterMaxPowerWatts()) { return 0; }
 
     // when overscaling is NOT enabled and the limit is already at the configured max power or higher,
     // we can't increase the power.
-    if (!overscalingEnabled() && getCurrentLimitWatts() >= getConfiguredMaxPowerWatts()) { return 0; }
+    if (!overscalingEnabled() && getCurrentLimitWatts() >= getEffectiveMaxPowerWatts()) { return 0; }
 
     uint16_t inverterMaxLimit = 0;
 
@@ -57,7 +57,7 @@ uint16_t PowerLimiterSolarInverter::getMaxIncreaseWatts() const
         // we use the inverter's max power, because each MPPT can deliver its max power individually
         inverterMaxLimit = getInverterMaxPowerWatts();
     } else {
-        inverterMaxLimit = getConfiguredMaxPowerWatts();
+        inverterMaxLimit = getEffectiveMaxPowerWatts();
     }
 
     std::vector<MpptNum_t> dcMppts = _spInverter->getMppts();
@@ -85,7 +85,7 @@ uint16_t PowerLimiterSolarInverter::getMaxIncreaseWatts() const
         return 0;
     }
 
-    uint16_t maxOutputIncrease = getConfiguredMaxPowerWatts() - getCurrentOutputAcWatts();
+    uint16_t maxOutputIncrease = getEffectiveMaxPowerWatts() - getCurrentOutputAcWatts();
     uint16_t maxLimitIncrease = inverterMaxLimit - getCurrentLimitWatts();
 
     // when overscaling is disabled and PDL is not supported,
