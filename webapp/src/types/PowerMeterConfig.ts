@@ -22,6 +22,8 @@ export interface PowerMeterHttpJsonValue {
     json_path: string;
     unit: number;
     sign_inverted: boolean;
+    voltage_json_path: string;
+    voltage_unit: number;
 }
 
 export interface PowerMeterHttpJsonConfig {

@@ -5,6 +5,7 @@
 #include <TaskSchedulerDeclarations.h>
 #include <memory>
 #include <mutex>
+#include <optional>
 
 namespace PowerMeters {
 
@@ -15,6 +16,9 @@ public:
     void updateSettings();
 
     float getPowerTotal() const;
+    std::optional<float> getVoltageL1() const;
+    std::optional<float> getVoltageL2() const;
+    std::optional<float> getVoltageL3() const;
     uint32_t getLastUpdate() const;
     bool isDataValid() const;
 

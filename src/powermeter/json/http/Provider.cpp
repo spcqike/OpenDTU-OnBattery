@@ -153,10 +153,10 @@ Provider::poll_result_t Provider::poll()
         float newValue = pathResolutionResult.first;
 
         switch (cfg.PowerUnit) {
-            case Unit_t::MilliWatts:
+            case PowerUnit_t::MilliWatts:
                 newValue /= 1000;
                 break;
-            case Unit_t::KiloWatts:
+            case PowerUnit_t::KiloWatts:
                 newValue *= 1000;
                 break;
             default:
@@ -165,24 +165,58 @@ Provider::poll_result_t Provider::poll()
 
         if (cfg.SignInverted) { newValue *= -1; }
 
+        bool hasVoltage = cfg.VoltageJsonPath[0] != '\0';
+        float voltage = 0;
+
+        if (hasVoltage) {
+            auto voltagePathResolutionResult = Utils::getJsonValueByPath<float>(jsonResponse, cfg.VoltageJsonPath);
+            if (!voltagePathResolutionResult.second.isEmpty()) {
+                return prefixedError(i, voltagePathResolutionResult.second.c_str());
+            }
+
+            voltage = voltagePathResolutionResult.first;
+            switch (cfg.VoltagePathUnit) {
+                case VoltageUnit_t::MilliVolts:
+                    voltage /= 1000;
+                    break;
+                default:
+                    break;
+            }
+        }
+
         {
             auto scopedLock = _dataCurrent.lock();
             switch (i) {
                 case 0:
                     _dataCurrent.add<DataPointLabel::PowerL1>(newValue);
+                    if (hasVoltage) {
+                        _dataCurrent.add<DataPointLabel::VoltageL1>(voltage);
+                    }
                     break;
 
                 case 1:
                     _dataCurrent.add<DataPointLabel::PowerL2>(newValue);
+                    if (hasVoltage) {
+                        _dataCurrent.add<DataPointLabel::VoltageL2>(voltage);
+                    }
                     break;
 
                 case 2:
                     _dataCurrent.add<DataPointLabel::PowerL3>(newValue);
+                    if (hasVoltage) {
+                        _dataCurrent.add<DataPointLabel::VoltageL3>(voltage);
+                    }
                     break;
 
                 default:
                     break;
             }
+        }
+
+        if (hasVoltage) {
+            DTU_LOGD("Value %d: power=%.2fW, voltage=%.2fV", i + 1, newValue, voltage);
+        } else {
+            DTU_LOGD("Value %d: power=%.2fW", i + 1, newValue);
         }
     }
 

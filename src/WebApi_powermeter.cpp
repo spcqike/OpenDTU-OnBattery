@@ -226,13 +226,20 @@ void WebApiPowerMeterClass::onTestHttpJsonRequest(AsyncWebServerRequest* request
         retMsg["type"] = "success";
         auto const& vals = std::get<values_t>(res);
         auto iter = vals.cbegin();
-        auto pos = snprintf(response, sizeof(response), "Result: %sW", iter->second.getValueText().c_str());
-        ++iter;
+        auto pos = snprintf(response, sizeof(response), "Result:");
+        bool first = true;
         while (iter != vals.cend()) {
-            pos += snprintf(response + pos, sizeof(response) - pos, ", %sW", iter->second.getValueText().c_str());
+            pos += snprintf(response + pos,
+                            sizeof(response) - pos,
+                            "%s %s=%s%s",
+                            first ? "" : ",",
+                            iter->second.getLabelText().c_str(),
+                            iter->second.getValueText().c_str(),
+                            iter->second.getUnitText().c_str());
+            first = false;
             ++iter;
         }
-        snprintf(response + pos, sizeof(response) - pos, ", Total: %5.2f", upMeter->getPowerTotal());
+        snprintf(response + pos, sizeof(response) - pos, ", Total=%5.2fW", upMeter->getPowerTotal());
     } else {
         snprintf(response, sizeof(response), "%s", std::get<String>(res).c_str());
     }

@@ -111,6 +111,8 @@ void ConfigurationClass::serializePowerMeterHttpJsonConfig(PowerMeterHttpJsonCon
         t["json_path"] = s.JsonPath;
         t["unit"] = s.PowerUnit;
         t["sign_inverted"] = s.SignInverted;
+        t["voltage_json_path"] = s.VoltageJsonPath;
+        t["voltage_unit"] = s.VoltagePathUnit;
     }
 }
 
@@ -536,6 +538,8 @@ void ConfigurationClass::deserializePowerMeterHttpJsonConfig(JsonObject const& s
         strlcpy(t.JsonPath, s["json_path"] | "", sizeof(t.JsonPath));
         t.PowerUnit = s["unit"] | PowerMeterHttpJsonValue::Unit::Watts;
         t.SignInverted = s["sign_inverted"] | false;
+        strlcpy(t.VoltageJsonPath, s["voltage_json_path"] | "", sizeof(t.VoltageJsonPath));
+        t.VoltagePathUnit = s["voltage_unit"] | PowerMeterHttpJsonValue::VoltageUnit::Volts;
     }
 
     target.Values[0].Enabled = true;
@@ -1078,6 +1082,8 @@ void ConfigurationClass::migrateOnBattery()
                 strlcpy(t.JsonPath, s["json_path"] | "", sizeof(t.JsonPath));
                 t.PowerUnit = s["unit"] | PowerMeterHttpJsonValue::Unit::Watts;
                 t.SignInverted = s["sign_inverted"] | false;
+                strlcpy(t.VoltageJsonPath, s["voltage_json_path"] | "", sizeof(t.VoltageJsonPath));
+                t.VoltagePathUnit = s["voltage_unit"] | PowerMeterHttpJsonValue::VoltageUnit::Volts;
             }
 
             target.IndividualRequests = powermeter["http_individual_requests"] | false;

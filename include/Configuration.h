@@ -120,6 +120,9 @@ struct POWERMETER_HTTP_JSON_VALUE_T {
     Unit PowerUnit;
 
     bool SignInverted;
+    char VoltageJsonPath[MQTT_MAX_JSON_PATH_STRLEN + 1];
+    enum VoltageUnit { Volts = 0, MilliVolts = 1 };
+    VoltageUnit VoltagePathUnit;
 };
 using PowerMeterHttpJsonValue = struct POWERMETER_HTTP_JSON_VALUE_T;
 

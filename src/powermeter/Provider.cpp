@@ -19,6 +19,21 @@ float Provider::getPowerTotal() const
         + _dataCurrent.get<DataPointLabel::PowerL3>().value_or(0.0f);
 }
 
+std::optional<float> Provider::getVoltageL1() const
+{
+    return _dataCurrent.get<DataPointLabel::VoltageL1>();
+}
+
+std::optional<float> Provider::getVoltageL2() const
+{
+    return _dataCurrent.get<DataPointLabel::VoltageL2>();
+}
+
+std::optional<float> Provider::getVoltageL3() const
+{
+    return _dataCurrent.get<DataPointLabel::VoltageL3>();
+}
+
 void Provider::mqttLoop() const
 {
     if (!MqttSettings.getConnected()) { return; }
