@@ -672,6 +672,12 @@ std::optional<uint16_t> PowerLimiterClass::calculateVoltageLimitedMaxPowerWatts(
 {
     if (!inverter.isVoltageLimitEnabled()) { return std::nullopt; }
 
+#if !OPENDTU_FEATURE_POWERMETER
+    DTU_LOGW("inverter %s: powermeter component disabled at compile-time, skipping voltage-based limiting",
+            inverter.getSerialStr());
+    return std::nullopt;
+#endif
+
     auto const phase = inverter.getVoltageLimitPhase();
     auto const phaseLabel = phaseToString(phase);
 

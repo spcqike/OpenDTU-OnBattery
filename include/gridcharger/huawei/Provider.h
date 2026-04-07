@@ -14,6 +14,7 @@
 #include <deque>
 #include <functional>
 #include <mutex>
+#include <TaskSchedulerDeclarations.h>
 
 namespace GridChargers::Huawei {
 
