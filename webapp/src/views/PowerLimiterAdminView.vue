@@ -206,6 +206,38 @@
                             type="number"
                             wide
                         />
+
+                        <InputElement
+                            :label="$t('powerlimiteradmin.VoltageLimitEnabled')"
+                            :tooltip="$t('powerlimiteradmin.VoltageLimitEnabledHint')"
+                            v-model="inv.voltage_limit_enabled"
+                            type="checkbox"
+                            wide
+                        />
+
+                        <div class="row mb-3" v-if="inv.voltage_limit_enabled">
+                            <label class="col-sm-4 col-form-label">
+                                {{ $t('powerlimiteradmin.VoltageLimitPhase') }}
+                            </label>
+                            <div class="col-sm-8">
+                                <select class="form-select" v-model="inv.voltage_limit_phase">
+                                    <option :value="0">L1</option>
+                                    <option :value="1">L2</option>
+                                    <option :value="2">L3</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <InputElement
+                            v-if="inv.voltage_limit_enabled"
+                            :label="$t('powerlimiteradmin.VoltageLimitFactor')"
+                            :tooltip="$t('powerlimiteradmin.VoltageLimitFactorHint')"
+                            v-model="inv.voltage_limit_factor"
+                            type="number"
+                            min="0.0001"
+                            step="0.0001"
+                            wide
+                        />
                     </CardElement>
                 </template>
 
@@ -726,7 +758,28 @@ export default defineComponent({
                 newInv.power_source = 0; // battery
                 newInv.use_overscaling_to_compensate_shading = false;
                 newInv.allow_standby = true;
+                newInv.voltage_limit_enabled = false;
+                newInv.voltage_limit_phase = 0; // L1
+                newInv.voltage_limit_factor = 0;
                 inverters.push(newInv);
+            }
+
+            for (const inv of inverters) {
+                if (typeof inv.voltage_limit_enabled !== 'boolean') {
+                    inv.voltage_limit_enabled = false;
+                }
+
+                if (
+                    typeof inv.voltage_limit_phase !== 'number' ||
+                    inv.voltage_limit_phase < 0 ||
+                    inv.voltage_limit_phase > 2
+                ) {
+                    inv.voltage_limit_phase = 0;
+                }
+
+                if (typeof inv.voltage_limit_factor !== 'number') {
+                    inv.voltage_limit_factor = 0;
+                }
             }
 
             inverters = inverters.sort((a, b) => {
@@ -737,8 +790,37 @@ export default defineComponent({
 
             return inverters;
         },
+        validateVoltageLimitConfig() {
+            const inverters = this.powerLimiterConfigList.inverters || [];
+
+            const invalidFactor = inverters.find(
+                (inv: PowerLimiterInverterConfig) => inv.voltage_limit_enabled && !(inv.voltage_limit_factor > 0)
+            );
+            if (invalidFactor) {
+                this.alertMessage = this.$t('powerlimiteradmin.VoltageLimitFactorValidation').toString();
+                return false;
+            }
+
+            const invalidPhase = inverters.find(
+                (inv: PowerLimiterInverterConfig) =>
+                    inv.voltage_limit_enabled && ![0, 1, 2].includes(inv.voltage_limit_phase)
+            );
+            if (invalidPhase) {
+                this.alertMessage = this.$t('powerlimiteradmin.VoltageLimitPhaseValidation').toString();
+                return false;
+            }
+
+            return true;
+        },
         savePowerLimiterConfig(e: Event) {
             e.preventDefault();
+
+            if (!this.validateVoltageLimitConfig()) {
+                this.alertType = 'warning';
+                this.showAlert = true;
+                window.scrollTo(0, 0);
+                return;
+            }
 
             const formData = new FormData();
             formData.append('data', JSON.stringify(this.powerLimiterConfigList));

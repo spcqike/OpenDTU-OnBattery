@@ -307,6 +307,18 @@ uint16_t PowerLimiterInverter::getConfiguredMaxPowerWatts() const
     return std::min(getInverterMaxPowerWatts(), _config.UpperPowerLimit);
 }
 
+uint16_t PowerLimiterInverter::getEffectiveMaxPowerWatts() const
+{
+    auto configured = getConfiguredMaxPowerWatts();
+    if (!_oDynamicUpperPowerLimitWatts.has_value()) { return configured; }
+    return std::min(configured, *_oDynamicUpperPowerLimitWatts);
+}
+
+void PowerLimiterInverter::setDynamicUpperPowerLimitWatts(std::optional<uint16_t> limit)
+{
+    _oDynamicUpperPowerLimitWatts = limit;
+}
+
 uint16_t PowerLimiterInverter::getCurrentOutputAcWatts() const
 {
     return _spInverter->Statistics()->getChannelFieldValue(TYPE_AC, CH0, FLD_PAC);
@@ -325,7 +337,7 @@ uint16_t PowerLimiterInverter::getExpectedOutputAcWatts() const
 void PowerLimiterInverter::setMaxOutput()
 {
     _oTargetPowerState = true;
-    setAcOutput(getConfiguredMaxPowerWatts());
+    setAcOutput(getEffectiveMaxPowerWatts());
 }
 
 void PowerLimiterInverter::restart()
@@ -336,6 +348,11 @@ void PowerLimiterInverter::restart()
 float PowerLimiterInverter::getGridVoltage() const
 {
     return _spInverter->Statistics()->getChannelFieldValue(TYPE_AC, CH0, FLD_UAC);
+}
+
+float PowerLimiterInverter::getGridCurrent() const
+{
+    return _spInverter->Statistics()->getChannelFieldValue(TYPE_AC, CH0, FLD_IAC);
 }
 
 float PowerLimiterInverter::getDcVoltage(uint8_t input)
@@ -385,8 +402,9 @@ void PowerLimiterInverter::debug() const
         (isProducing()?"producing":"standing by at"), getCurrentOutputAcWatts(),
         (isBehindPowerMeter()?"included in":"excluded from")
     );
-    DTU_LOGV("    lower/current/upper limit: %d/%d/%d W, output capability: %d W",
+    DTU_LOGV("    lower/current/upper/effective limit: %d/%d/%d/%d W, output capability: %d W",
         _config.LowerPowerLimit, getCurrentLimitWatts(), _config.UpperPowerLimit,
+        getEffectiveMaxPowerWatts(),
         getInverterMaxPowerWatts()
     );
     DTU_LOGV("    sending commands %s, %s, %s",

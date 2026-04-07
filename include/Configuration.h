@@ -153,6 +153,10 @@ struct POWERLIMITER_INVERTER_CONFIG_T {
     bool AllowStandby;
     uint16_t LowerPowerLimit;
     uint16_t UpperPowerLimit;
+    bool VoltageLimitEnabled;
+    enum class VoltageLimitPhase_t : uint8_t { L1 = 0, L2 = 1, L3 = 2 };
+    VoltageLimitPhase_t VoltageLimitPhase;
+    float VoltageLimitFactor;
 
     enum InverterPowerSource { Battery = 0, Solar = 1, SmartBuffer = 2 };
     InverterPowerSource PowerSource;

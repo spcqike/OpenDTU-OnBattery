@@ -36,6 +36,8 @@ public:
     // maximum amount of AC power the inverter is allowed to produce as per
     // upper power limit (additionally restricted by inverter's absolute max)
     uint16_t getConfiguredMaxPowerWatts() const;
+    uint16_t getEffectiveMaxPowerWatts() const;
+    void setDynamicUpperPowerLimitWatts(std::optional<uint16_t> limit);
 
     uint16_t getCurrentOutputAcWatts() const;
 
@@ -67,6 +69,7 @@ public:
     void restart();
 
     float getGridVoltage() const;
+    float getGridCurrent() const;
     float getDcVoltage(uint8_t input);
     bool isSendingCommandsEnabled() const { return _spInverter->getEnableCommands(); }
     bool isReachable() const { return _spInverter->isReachable(); }
@@ -75,6 +78,9 @@ public:
     uint64_t getSerial() const { return _config.Serial; }
     char const* getSerialStr() const { return _serialStr; }
     bool isBehindPowerMeter() const { return _config.IsBehindPowerMeter; }
+    bool isVoltageLimitEnabled() const { return _config.VoltageLimitEnabled; }
+    PowerLimiterInverterConfig::VoltageLimitPhase_t getVoltageLimitPhase() const { return _config.VoltageLimitPhase; }
+    float getVoltageLimitFactor() const { return _config.VoltageLimitFactor; }
 
     bool isBatteryPowered() const { return _config.PowerSource == PowerLimiterInverterConfig::InverterPowerSource::Battery; }
     bool isSolarPowered() const { return _config.PowerSource == PowerLimiterInverterConfig::InverterPowerSource::Solar; }
@@ -137,4 +143,5 @@ private:
 
     // the expected AC output (possibly is different from the target limit)
     uint16_t _expectedOutputAcWatts = 0;
+    std::optional<uint16_t> _oDynamicUpperPowerLimitWatts = std::nullopt;
 };

@@ -228,6 +228,9 @@ void ConfigurationClass::serializePowerLimiterConfig(PowerLimiterConfig const& s
         t["allow_standby"] = s.AllowStandby;
         t["lower_power_limit"] = s.LowerPowerLimit;
         t["upper_power_limit"] = s.UpperPowerLimit;
+        t["voltage_limit_enabled"] = s.VoltageLimitEnabled;
+        t["voltage_limit_phase"] = static_cast<uint8_t>(s.VoltageLimitPhase);
+        t["voltage_limit_factor"] = s.VoltageLimitFactor;
     }
 }
 
@@ -657,6 +660,10 @@ void ConfigurationClass::deserializePowerLimiterConfig(JsonObject const& source,
         inv.AllowStandby = s["allow_standby"] | POWERLIMITER_ALLOW_STANDBY;
         inv.LowerPowerLimit = s["lower_power_limit"] | POWERLIMITER_LOWER_POWER_LIMIT;
         inv.UpperPowerLimit = s["upper_power_limit"] | POWERLIMITER_UPPER_POWER_LIMIT;
+        inv.VoltageLimitEnabled = s["voltage_limit_enabled"] | POWERLIMITER_VOLTAGE_LIMIT_ENABLED;
+        inv.VoltageLimitPhase = static_cast<PowerLimiterInverterConfig::VoltageLimitPhase_t>(
+            s["voltage_limit_phase"] | POWERLIMITER_VOLTAGE_LIMIT_PHASE);
+        inv.VoltageLimitFactor = s["voltage_limit_factor"] | POWERLIMITER_VOLTAGE_LIMIT_FACTOR;
     }
 }
 
