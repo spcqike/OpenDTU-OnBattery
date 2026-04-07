@@ -2,8 +2,13 @@
 
 #include <gridcharger/Controller.h>
 #include <gridcharger/DummyStats.h>
+#include "FeatureFlags.h"
+#if OPENDTU_FEATURE_GRIDCHARGER_PROVIDER_HUAWEI
 #include <gridcharger/huawei/Provider.h>
+#endif
+#if OPENDTU_FEATURE_GRIDCHARGER_PROVIDER_TRUCKI
 #include <gridcharger/trucki/Provider.h>
+#endif
 #include <Configuration.h>
 #include <MqttSettings.h>
 #include <LogHelper.h>
@@ -12,7 +17,9 @@
 static const char* TAG = "gridCharger";
 static const char* SUBTAG = "Controller";
 
+#if OPENDTU_FEATURE_GRIDCHARGER
 GridChargers::Controller GridCharger;
+#endif
 
 namespace GridChargers {
 
@@ -39,14 +46,18 @@ void Controller::updateSettings()
     if (!config.GridCharger.Enabled) { return; }
 
     switch (config.GridCharger.Provider) {
+#if OPENDTU_FEATURE_GRIDCHARGER_PROVIDER_HUAWEI
         case GridChargerProviderType::HUAWEI:
             _upProvider = std::make_unique<::GridChargers::Huawei::Provider>();
             break;
+#endif
+#if OPENDTU_FEATURE_GRIDCHARGER_PROVIDER_TRUCKI
         case GridChargerProviderType::TRUCKI:
             _upProvider = std::make_unique<::GridChargers::Trucki::Provider>();
             break;
+#endif
         default:
-            DTU_LOGW("Unknown provider: %d\r\n", config.GridCharger.Provider);
+            DTU_LOGW("Configured grid charger provider %u not available in this build", static_cast<unsigned>(config.GridCharger.Provider));
             return;
     }
 
@@ -94,6 +105,8 @@ std::shared_ptr<Stats const> Controller::getStats() const
 }
 
 // Template instantiations
+#if OPENDTU_FEATURE_GRIDCHARGER_PROVIDER_HUAWEI
 template GridChargers::Huawei::Provider* Controller::getProvider<GridChargers::Huawei::Provider>() const;
+#endif
 
 } // namespace GridChargers

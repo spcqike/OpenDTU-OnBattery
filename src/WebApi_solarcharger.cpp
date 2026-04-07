@@ -3,11 +3,16 @@
 #include "ArduinoJson.h"
 #include "AsyncJson.h"
 #include "Configuration.h"
+#include "FeatureFlags.h"
 #include "WebApi.h"
 #include "WebApi_errors.h"
 #include "helper.h"
+#if OPENDTU_FEATURE_POWERLIMITER && OPENDTU_FEATURE_MQTT_HASS
 #include "MqttHandlePowerLimiterHass.h"
+#endif
 #include <solarcharger/Controller.h>
+
+#if OPENDTU_FEATURE_SOLARCHARGER
 
 void WebApiSolarChargerlass::init(AsyncWebServer& server, Scheduler& scheduler)
 {
@@ -75,5 +80,9 @@ void WebApiSolarChargerlass::onAdminPost(AsyncWebServerRequest* request)
     SolarCharger.updateSettings();
 
     // potentially make solar passthrough thresholds auto-discoverable
+#if OPENDTU_FEATURE_POWERLIMITER && OPENDTU_FEATURE_MQTT_HASS
     MqttHandlePowerLimiterHass.forceUpdate();
+#endif
 }
+
+#endif // OPENDTU_FEATURE_SOLARCHARGER

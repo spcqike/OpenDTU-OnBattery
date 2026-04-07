@@ -6,12 +6,17 @@
 #include "ArduinoJson.h"
 #include "AsyncJson.h"
 #include "Configuration.h"
+#include "FeatureFlags.h"
+#if OPENDTU_FEATURE_MQTT_HASS
 #include "MqttHandlePowerLimiterHass.h"
+#endif
 #include "PowerLimiter.h"
 #include "WebApi.h"
 #include "helper.h"
 #include "WebApi_errors.h"
 #include "Configuration.h"
+
+#if OPENDTU_FEATURE_POWERLIMITER
 
 void WebApiPowerLimiterClass::init(AsyncWebServer& server, Scheduler& scheduler)
 {
@@ -112,5 +117,9 @@ void WebApiPowerLimiterClass::onAdminPost(AsyncWebServerRequest* request)
     PowerLimiter.triggerReloadingConfig();
 
     // potentially make thresholds auto-discoverable
+#if OPENDTU_FEATURE_MQTT_HASS
     MqttHandlePowerLimiterHass.forceUpdate();
+#endif
 }
+
+#endif // OPENDTU_FEATURE_POWERLIMITER

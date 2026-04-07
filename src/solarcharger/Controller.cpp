@@ -1,17 +1,24 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include <Configuration.h>
+#include "FeatureFlags.h"
 #include <MqttSettings.h>
 #include <solarcharger/Controller.h>
 #include <solarcharger/DummyStats.h>
+#if OPENDTU_FEATURE_SOLARCHARGER_PROVIDER_VEDIRECT
 #include <solarcharger/victron/Provider.h>
+#endif
+#if OPENDTU_FEATURE_SOLARCHARGER_PROVIDER_MQTT
 #include <solarcharger/mqtt/Provider.h>
+#endif
 #include <LogHelper.h>
 
 #undef TAG
 static const char* TAG = "solarCharger";
 static const char* SUBTAG = "Controller";
 
+#if OPENDTU_FEATURE_SOLARCHARGER
 SolarChargers::Controller SolarCharger;
+#endif
 
 namespace SolarChargers {
 
@@ -38,14 +45,18 @@ void Controller::updateSettings()
     if (!config.SolarCharger.Enabled) { return; }
 
     switch (config.SolarCharger.Provider) {
+#if OPENDTU_FEATURE_SOLARCHARGER_PROVIDER_VEDIRECT
         case SolarChargerProviderType::VEDIRECT:
             _upProvider = std::make_unique<::SolarChargers::Victron::Provider>();
             break;
+#endif
+#if OPENDTU_FEATURE_SOLARCHARGER_PROVIDER_MQTT
         case SolarChargerProviderType::MQTT:
             _upProvider = std::make_unique<::SolarChargers::Mqtt::Provider>();
             break;
+#endif
         default:
-            DTU_LOGE("Unknown provider: %d", config.SolarCharger.Provider);
+            DTU_LOGW("Configured solar charger provider %u not available in this build", static_cast<unsigned>(config.SolarCharger.Provider));
             return;
     }
 

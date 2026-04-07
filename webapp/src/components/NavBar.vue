@@ -76,27 +76,27 @@
                                     $t('menu.DTUSettings')
                                 }}</router-link>
                             </li>
-                            <li>
+                            <li v-if="features.components.solarcharger">
                                 <router-link @click="onClick" class="dropdown-item" to="/settings/solarcharger">{{
                                     $t('menu.SolarChargerSettings')
                                 }}</router-link>
                             </li>
-                            <li>
+                            <li v-if="features.components.powermeter">
                                 <router-link @click="onClick" class="dropdown-item" to="/settings/powermeter">{{
                                     $t('menu.PowerMeterSettings')
                                 }}</router-link>
                             </li>
-                            <li>
+                            <li v-if="features.components.powerlimiter">
                                 <router-link @click="onClick" class="dropdown-item" to="/settings/powerlimiter"
                                     >Dynamic Power Limiter</router-link
                                 >
                             </li>
-                            <li>
+                            <li v-if="features.components.battery">
                                 <router-link @click="onClick" class="dropdown-item" to="/settings/battery">{{
                                     $t('menu.BatterySettings')
                                 }}</router-link>
                             </li>
-                            <li>
+                            <li v-if="features.components.gridcharger">
                                 <router-link @click="onClick" class="dropdown-item" to="/settings/chargerac">{{
                                     $t('menu.AcChargerSettings')
                                 }}</router-link>
@@ -190,6 +190,7 @@
 
 <script lang="ts">
 import { isLoggedIn, logout } from '@/utils/authentication';
+import { features } from '@/utils/features';
 import { BIconEgg, BIconSun, BIconTree, BIconBatteryCharging } from 'bootstrap-icons-vue';
 import { defineComponent } from 'vue';
 import LocaleSwitcher from './LocaleSwitcher.vue';
@@ -208,6 +209,7 @@ export default defineComponent({
         return {
             isLogged: isLoggedIn(),
             now: {} as Date,
+            features,
         };
     },
     created() {

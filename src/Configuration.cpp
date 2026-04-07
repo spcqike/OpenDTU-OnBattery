@@ -3,6 +3,7 @@
  * Copyright (C) 2022-2026 Thomas Basler and others
  */
 #include "Configuration.h"
+#include "FeatureFlags.h"
 #include "NetworkSettings.h"
 #include "Utils.h"
 #include "defaults.h"
@@ -337,12 +338,14 @@ bool ConfigurationClass::write()
     mqtt_tls["client_cert"] = config.Mqtt.Tls.ClientCert;
     mqtt_tls["client_key"] = config.Mqtt.Tls.ClientKey;
 
+#if OPENDTU_FEATURE_MQTT_HASS
     JsonObject mqtt_hass = mqtt["hass"].to<JsonObject>();
     mqtt_hass["enabled"] = config.Mqtt.Hass.Enabled;
     mqtt_hass["retain"] = config.Mqtt.Hass.Retain;
     mqtt_hass["topic"] = config.Mqtt.Hass.Topic;
     mqtt_hass["individual_panels"] = config.Mqtt.Hass.IndividualPanels;
     mqtt_hass["expire"] = config.Mqtt.Hass.Expire;
+#endif
 
     JsonObject dtu = doc["dtu"].to<JsonObject>();
     dtu["serial"] = config.Dtu.Serial;
@@ -359,6 +362,7 @@ bool ConfigurationClass::write()
     JsonObject device = doc["device"].to<JsonObject>();
     device["pinmapping"] = config.Dev_PinMapping;
 
+#if OPENDTU_FEATURE_DISPLAY
     JsonObject display = device["display"].to<JsonObject>();
     display["powersafe"] = config.Display.PowerSafe;
     display["screensaver"] = config.Display.ScreenSaver;
@@ -367,6 +371,7 @@ bool ConfigurationClass::write()
     display["locale"] = config.Display.Locale;
     display["diagram_duration"] = config.Display.Diagram.Duration;
     display["diagram_mode"] = config.Display.Diagram.Mode;
+#endif
 
     JsonArray leds = device["led"].to<JsonArray>();
     for (uint8_t i = 0; i < PINMAPPING_LED_COUNT; i++) {
@@ -408,12 +413,15 @@ bool ConfigurationClass::write()
         module["name"] = config.Logging.Modules[i].Name;
     }
 
+#if OPENDTU_FEATURE_SOLARCHARGER
     JsonObject solarcharger = doc["solarcharger"].to<JsonObject>();
     serializeSolarChargerConfig(config.SolarCharger, solarcharger);
 
     JsonObject solarcharger_mqtt = solarcharger["mqtt"].to<JsonObject>();
     serializeSolarChargerMqttConfig(config.SolarCharger.Mqtt, solarcharger_mqtt);
+#endif
 
+#if OPENDTU_FEATURE_POWERMETER
     JsonObject powermeter = doc["powermeter"].to<JsonObject>();
     powermeter["enabled"] = config.PowerMeter.Enabled;
     powermeter["source"] = config.PowerMeter.Source;
@@ -432,10 +440,14 @@ bool ConfigurationClass::write()
 
     JsonObject powermeter_udp_victron = powermeter["udp_victron"].to<JsonObject>();
     serializePowerMeterUdpVictronConfig(config.PowerMeter.UdpVictron, powermeter_udp_victron);
+#endif
 
+#if OPENDTU_FEATURE_POWERLIMITER
     JsonObject powerlimiter = doc["powerlimiter"].to<JsonObject>();
     serializePowerLimiterConfig(config.PowerLimiter, powerlimiter);
+#endif
 
+#if OPENDTU_FEATURE_BATTERY
     JsonObject battery = doc["battery"].to<JsonObject>();
     serializeBatteryConfig(config.Battery, battery);
 
@@ -447,7 +459,9 @@ bool ConfigurationClass::write()
 
     JsonObject battery_serial = battery["serial"].to<JsonObject>();
     serializeBatterySerialConfig(config.Battery.Serial, battery_serial);
+#endif
 
+#if OPENDTU_FEATURE_GRIDCHARGER
     JsonObject gridcharger = doc["gridcharger"].to<JsonObject>();
     serializeGridChargerConfig(config.GridCharger, gridcharger);
 
@@ -459,6 +473,7 @@ bool ConfigurationClass::write()
 
     JsonObject gridcharger_trucki = gridcharger["trucki"].to<JsonObject>();
     serializeGridChargerTruckiConfig(config.GridCharger.Trucki, gridcharger_trucki);
+#endif
 
     if (!Utils::checkJsonAlloc(doc, __FUNCTION__, __LINE__)) {
         return false;
@@ -822,12 +837,14 @@ bool ConfigurationClass::read()
     strlcpy(config.Mqtt.Tls.ClientCert, mqtt_tls["client_cert"] | MQTT_TLSCLIENTCERT, sizeof(config.Mqtt.Tls.ClientCert));
     strlcpy(config.Mqtt.Tls.ClientKey, mqtt_tls["client_key"] | MQTT_TLSCLIENTKEY, sizeof(config.Mqtt.Tls.ClientKey));
 
+#if OPENDTU_FEATURE_MQTT_HASS
     JsonObject mqtt_hass = mqtt["hass"];
     config.Mqtt.Hass.Enabled = mqtt_hass["enabled"] | MQTT_HASS_ENABLED;
     config.Mqtt.Hass.Retain = mqtt_hass["retain"] | MQTT_HASS_RETAIN;
     config.Mqtt.Hass.Expire = mqtt_hass["expire"] | MQTT_HASS_EXPIRE;
     config.Mqtt.Hass.IndividualPanels = mqtt_hass["individual_panels"] | MQTT_HASS_INDIVIDUALPANELS;
     strlcpy(config.Mqtt.Hass.Topic, mqtt_hass["topic"] | MQTT_HASS_TOPIC, sizeof(config.Mqtt.Hass.Topic));
+#endif
 
     JsonObject dtu = doc["dtu"];
     config.Dtu.Serial = dtu["serial"] | DTU_SERIAL;
@@ -844,6 +861,7 @@ bool ConfigurationClass::read()
     JsonObject device = doc["device"];
     strlcpy(config.Dev_PinMapping, device["pinmapping"] | DEV_PINMAPPING, sizeof(config.Dev_PinMapping));
 
+#if OPENDTU_FEATURE_DISPLAY
     JsonObject display = device["display"];
     config.Display.PowerSafe = display["powersafe"] | DISPLAY_POWERSAFE;
     config.Display.ScreenSaver = display["screensaver"] | DISPLAY_SCREENSAVER;
@@ -852,6 +870,7 @@ bool ConfigurationClass::read()
     strlcpy(config.Display.Locale, display["locale"] | DISPLAY_LOCALE, sizeof(config.Display.Locale));
     config.Display.Diagram.Duration = display["diagram_duration"] | DISPLAY_DIAGRAM_DURATION;
     config.Display.Diagram.Mode = display["diagram_mode"] | DISPLAY_DIAGRAM_MODE;
+#endif
 
     JsonArray leds = device["led"];
     for (uint8_t i = 0; i < PINMAPPING_LED_COUNT; i++) {
@@ -893,10 +912,13 @@ bool ConfigurationClass::read()
         config.Logging.Modules[i].Level = module["level"] | ESP_LOG_VERBOSE;
     }
 
+#if OPENDTU_FEATURE_SOLARCHARGER
     JsonObject solarcharger = doc["solarcharger"];
     deserializeSolarChargerConfig(solarcharger, config.SolarCharger);
     deserializeSolarChargerMqttConfig(solarcharger["mqtt"], config.SolarCharger.Mqtt);
+#endif
 
+#if OPENDTU_FEATURE_POWERMETER
     JsonObject powermeter = doc["powermeter"];
     config.PowerMeter.Enabled = powermeter["enabled"] | POWERMETER_ENABLED;
     config.PowerMeter.Source =  powermeter["source"] | POWERMETER_SOURCE;
@@ -907,20 +929,27 @@ bool ConfigurationClass::read()
     deserializePowerMeterHttpSmlConfig(powermeter["http_sml"], config.PowerMeter.HttpSml);
 
     deserializePowerMeterUdpVictronConfig(powermeter["udp_victron"], config.PowerMeter.UdpVictron);
+#endif
 
+#if OPENDTU_FEATURE_POWERLIMITER
     deserializePowerLimiterConfig(doc["powerlimiter"], config.PowerLimiter);
+#endif
 
+#if OPENDTU_FEATURE_BATTERY
     JsonObject battery = doc["battery"];
     deserializeBatteryConfig(battery, config.Battery);
     deserializeBatteryZendureConfig(battery["zendure"], config.Battery.Zendure);
     deserializeBatteryMqttConfig(battery["mqtt"], config.Battery.Mqtt);
     deserializeBatterySerialConfig(battery["serial"], config.Battery.Serial);
+#endif
 
+#if OPENDTU_FEATURE_GRIDCHARGER
     JsonObject gridcharger = doc["gridcharger"];
     deserializeGridChargerConfig(gridcharger, config.GridCharger);
     deserializeGridChargerCanConfig(gridcharger["can"], config.GridCharger.Can);
     deserializeGridChargerHuaweiConfig(gridcharger["huawei"], config.GridCharger.Huawei);
     deserializeGridChargerTruckiConfig(gridcharger["trucki"], config.GridCharger.Trucki);
+#endif
 
     f.close();
 

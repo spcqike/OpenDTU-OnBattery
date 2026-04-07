@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include <solarcharger/Stats.h>
 #include <Configuration.h>
+#include "FeatureFlags.h"
 #include <MqttSettings.h>
+#if OPENDTU_FEATURE_POWERLIMITER
 #include <PowerLimiter.h>
+#endif
 
 namespace SolarChargers {
 
@@ -10,10 +13,14 @@ void Stats::getLiveViewData(JsonVariant& root, boolean fullUpdate, uint32_t last
 {
     // power limiter state
     root["dpl"]["PLSTATE"] = -1;
+#if OPENDTU_FEATURE_POWERLIMITER
     if (Configuration.get().PowerLimiter.Enabled) {
         root["dpl"]["PLSTATE"] = PowerLimiter.getPowerLimiterState();
     }
     root["dpl"]["PLLIMIT"] = PowerLimiter.getInverterOutput();
+#else
+    root["dpl"]["PLLIMIT"] = 0;
+#endif
 
     root["solarcharger"]["full_update"] = fullUpdate;
 }

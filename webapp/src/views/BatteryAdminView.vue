@@ -536,6 +536,7 @@ import FormFooter from '@/components/FormFooter.vue';
 import InputElement from '@/components/InputElement.vue';
 import type { BatteryConfig } from '@/types/BatteryConfig';
 import { authHeader, handleResponse } from '@/utils/authentication';
+import { features } from '@/utils/features';
 import { defineComponent } from 'vue';
 
 export default defineComponent({
@@ -550,6 +551,7 @@ export default defineComponent({
         return {
             dataLoading: true,
             batteryConfigList: {} as BatteryConfig,
+            features,
             alertMessage: '',
             alertType: 'info',
             showAlert: false,
@@ -562,7 +564,17 @@ export default defineComponent({
                 { key: 5, value: 'SBSCan' },
                 { key: 6, value: 'JbdBmsSerial' },
                 { key: 7, value: 'ZendureMqtt' },
-            ],
+            ].filter((provider) => {
+                if (provider.key === 0) return features.providers.battery.pylontech;
+                if (provider.key === 1) return features.providers.battery.jkbms;
+                if (provider.key === 2) return features.providers.battery.mqtt;
+                if (provider.key === 3) return features.providers.battery.victron_smartshunt;
+                if (provider.key === 4) return features.providers.battery.pytes;
+                if (provider.key === 5) return features.providers.battery.sbs;
+                if (provider.key === 6) return features.providers.battery.jbdbms;
+                if (provider.key === 7) return features.providers.battery.zendure;
+                return true;
+            }),
             serialBmsInterfaceTypeList: [
                 { key: 0, value: 'Uart' },
                 { key: 1, value: 'Transceiver' },

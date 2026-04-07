@@ -47,6 +47,12 @@
     "Error": {
         "Oops": "Oops!"
     },
+    "featuredisabled": {
+        "Title": "Fonction désactivée",
+        "Message": "La section demandée n'est pas disponible, car {feature} est désactivé dans ce firmware.",
+        "Target": "Chemin demandé : {path}",
+        "BackHome": "Retour à l'accueil"
+    },
     "localeswitcher": {
         "Dark": "Sombre",
         "Light": "Clair",

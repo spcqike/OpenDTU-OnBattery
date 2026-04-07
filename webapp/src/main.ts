@@ -4,18 +4,25 @@ import App from './App.vue';
 import { tooltip } from './plugins/bootstrap';
 import router from './router';
 import { i18n } from './i18n';
+import { loadFeatures } from './utils/features';
 
 import 'bootstrap';
 import './scss/styles.scss';
 
-const app = createApp(App);
+async function bootstrap() {
+    await loadFeatures();
 
-const emitter = mitt();
-app.config.globalProperties.$emitter = emitter;
+    const app = createApp(App);
 
-app.directive('tooltip', tooltip);
+    const emitter = mitt();
+    app.config.globalProperties.$emitter = emitter;
 
-app.use(router);
-app.use(i18n);
+    app.directive('tooltip', tooltip);
 
-app.mount('#app');
+    app.use(router);
+    app.use(i18n);
+
+    app.mount('#app');
+}
+
+bootstrap();

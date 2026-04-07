@@ -8,8 +8,9 @@
 #include "Utils.h"
 #include "WebApi.h"
 #include "defaults.h"
-#include "PowerLimiter.h"
 #include <solarcharger/Controller.h>
+
+#if OPENDTU_FEATURE_SOLARCHARGER
 
 #undef TAG
 static const char* TAG = "webapi";
@@ -148,3 +149,5 @@ void WebApiWsSolarChargerLiveClass::onLivedataStatus(AsyncWebServerRequest* requ
         WebApi.sendTooManyRequests(request);
     }
 }
+
+#endif // OPENDTU_FEATURE_SOLARCHARGER

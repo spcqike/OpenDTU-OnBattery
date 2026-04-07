@@ -349,9 +349,9 @@
                 </div>
             </div>
         </div>
-        <SolarChargerView v-if="liveData.solarcharger.enabled" />
-        <BatteryView v-if="liveData.battery.enabled" />
-        <GridChargerView v-if="liveData.gridcharger.enabled" />
+        <SolarChargerView v-if="features.components.solarcharger && liveData.solarcharger.enabled" />
+        <BatteryView v-if="features.components.battery && liveData.battery.enabled" />
+        <GridChargerView v-if="features.components.gridcharger && liveData.gridcharger.enabled" />
     </BasePage>
 
     <ModalDialog modalId="eventView" :title="$t('home.EventLog')" :loading="eventLogLoading">
@@ -530,6 +530,7 @@ import type { LimitConfig } from '@/types/LimitConfig';
 import type { LimitStatus } from '@/types/LimitStatus';
 import type { Inverter, LiveData } from '@/types/LiveDataStatus';
 import { authHeader, authUrl, handleResponse, isLoggedIn } from '@/utils/authentication';
+import { features } from '@/utils/features';
 import * as bootstrap from 'bootstrap';
 import {
     BIconArrowCounterclockwise,
@@ -616,6 +617,7 @@ export default defineComponent({
             alertTypePower: 'info',
             showAlertPower: false,
             successCommandPower: '',
+            features,
 
             isWebsocketConnected: false,
         };

@@ -2,6 +2,8 @@
 /*
  * Copyright (C) 2022 Thomas Basler and others
  */
+#include "FeatureFlags.h"
+#if OPENDTU_FEATURE_POWERLIMITER && OPENDTU_FEATURE_MQTT_HASS
 #include "MqttHandlePowerLimiterHass.h"
 #include "MqttHandleHass.h"
 #include "Configuration.h"
@@ -252,3 +254,4 @@ void MqttHandlePowerLimiterHassClass::publish(const String& subtopic, const Stri
     topic += subtopic;
     MqttSettings.publishGeneric(topic.c_str(), payload.c_str(), Configuration.get().Mqtt.Hass.Retain);
 }
+#endif

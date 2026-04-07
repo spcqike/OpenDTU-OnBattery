@@ -2,9 +2,16 @@
 
 #include <gridcharger/trucki/Provider.h>
 #include <gridcharger/trucki/DataPoints.h>
+#include "FeatureFlags.h"
+#if OPENDTU_FEATURE_BATTERY
 #include <battery/Controller.h>
+#endif
+#if OPENDTU_FEATURE_POWERMETER
 #include <powermeter/Controller.h>
+#endif
+#if OPENDTU_FEATURE_POWERLIMITER
 #include <PowerLimiter.h>
+#endif
 #include <Utils.h>
 #include <WiFiUdp.h>
 #include <LogHelper.h>
@@ -112,6 +119,7 @@ void Provider::powerControlLoop()
     // ***********************
     // Emergency charge
     // ***********************
+#if OPENDTU_FEATURE_BATTERY
     auto stats = Battery.getStats();
     if (!_batteryEmergencyCharging && config.GridCharger.EmergencyChargeEnabled && stats->getImmediateChargingRequest()) {
         if (!oMaxAcPower) {
@@ -137,6 +145,7 @@ void Provider::powerControlLoop()
         }
         return;
     }
+#endif
 
     // ***********************
     // Automatic power control
@@ -148,7 +157,13 @@ void Provider::powerControlLoop()
             return;
         }
 
-        if (PowerLimiter.isGovernedBatteryPoweredInverterProducing()) {
+        if (
+#if OPENDTU_FEATURE_POWERLIMITER
+                PowerLimiter.isGovernedBatteryPoweredInverterProducing()
+#else
+                false
+#endif
+        ) {
             setRequestedPowerAc(0);
             _autoPowerEnabled = false;
             DTU_LOGI("Inverter is active, disable PSU");
@@ -180,6 +195,7 @@ void Provider::powerControlLoop()
 
         // We have received a new PowerMeter value. Also we're _autoPowerEnabled
         // So we're good to calculate a new limit
+        #if OPENDTU_FEATURE_POWERMETER
         if (PowerMeter.getLastUpdate() > _lastPowerMeterUpdateReceivedMillis && _autoPowerEnabled) {
             _lastPowerMeterUpdateReceivedMillis = PowerMeter.getLastUpdate();
 
@@ -194,6 +210,7 @@ void Provider::powerControlLoop()
             DTU_LOGV("powerTotal: %.0f, outputPower: %.01f, newPowerLimit: %.0f", powerTotal, *oOutputPower, newPowerLimit);
 
             // Check whether the battery SoC limit setting is enabled
+            #if OPENDTU_FEATURE_BATTERY
             if (config.Battery.Enabled && config.GridCharger.AutoPowerBatterySoCLimitsEnabled) {
                 uint8_t _batterySoC = Battery.getStats()->getSoC();
                 // Sets power limit to 0 if the BMS reported SoC reaches or exceeds the user configured value
@@ -203,6 +220,7 @@ void Provider::powerControlLoop()
                             _batterySoC, config.GridCharger.AutoPowerStopBatterySoCThreshold, newPowerLimit);
                 }
             }
+            #endif
 
             if (newPowerLimit >= *oMinAcPower) {
                 // Limit power to maximum
@@ -217,7 +235,10 @@ void Provider::powerControlLoop()
                 float calculatedCurrent = efficiency * (newPowerLimit / *oOutputVoltage);
 
                 // Limit output current to value requested by BMS
-                float permissibleCurrent = stats->getChargeCurrentLimit() - (stats->getChargeCurrent() - *oOutputCurrent); // BMS current limit - current from other sources, e.g. Victron MPPT charger
+                float permissibleCurrent = calculatedCurrent;
+                #if OPENDTU_FEATURE_BATTERY
+                permissibleCurrent = stats->getChargeCurrentLimit() - (stats->getChargeCurrent() - *oOutputCurrent); // BMS current limit - current from other sources, e.g. Victron MPPT charger
+                #endif
                 float outputCurrent = std::min(calculatedCurrent, permissibleCurrent);
                 outputCurrent = outputCurrent > 0 ? outputCurrent : 0;
 
@@ -235,6 +256,7 @@ void Provider::powerControlLoop()
                 setRequestedPowerAc(0);
             }
         }
+        #endif
     }
 }
 

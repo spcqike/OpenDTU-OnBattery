@@ -1,13 +1,31 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include <battery/Controller.h>
+#include "FeatureFlags.h"
+#include <battery/HassIntegration.h>
+#if OPENDTU_FEATURE_BATTERY_PROVIDER_JBDBMS
 #include <battery/jbdbms/Provider.h>
+#endif
+#if OPENDTU_FEATURE_BATTERY_PROVIDER_JKBMS
 #include <battery/jkbms/Provider.h>
+#endif
+#if OPENDTU_FEATURE_BATTERY_PROVIDER_MQTT
 #include <battery/mqtt/Provider.h>
+#endif
+#if OPENDTU_FEATURE_BATTERY_PROVIDER_PYLONTECH
 #include <battery/pylontech/Provider.h>
+#endif
+#if OPENDTU_FEATURE_BATTERY_PROVIDER_PYTES
 #include <battery/pytes/Provider.h>
+#endif
+#if OPENDTU_FEATURE_BATTERY_PROVIDER_SBS
 #include <battery/sbs/Provider.h>
+#endif
+#if OPENDTU_FEATURE_BATTERY_PROVIDER_VICTRON_SMARTSHUNT
 #include <battery/victronsmartshunt/Provider.h>
+#endif
+#if OPENDTU_FEATURE_BATTERY_PROVIDER_ZENDURE
 #include <battery/zendure/Provider.h>
+#endif
 #include <Configuration.h>
 #include <LogHelper.h>
 
@@ -15,7 +33,9 @@
 static const char* TAG = "battery";
 static const char* SUBTAG = "Controller";
 
+#if OPENDTU_FEATURE_BATTERY
 Batteries::Controller Battery;
+#endif
 
 namespace Batteries {
 
@@ -54,32 +74,48 @@ void Controller::updateSettings()
     if (!config.Battery.Enabled) { return; }
 
     switch (config.Battery.Provider) {
+#if OPENDTU_FEATURE_BATTERY_PROVIDER_PYLONTECH
         case 0:
             _upProvider = std::make_unique<Pylontech::Provider>();
             break;
+#endif
+#if OPENDTU_FEATURE_BATTERY_PROVIDER_JKBMS
         case 1:
             _upProvider = std::make_unique<JkBms::Provider>();
             break;
+#endif
+#if OPENDTU_FEATURE_BATTERY_PROVIDER_MQTT
         case 2:
             _upProvider = std::make_unique<Mqtt::Provider>();
             break;
+#endif
+#if OPENDTU_FEATURE_BATTERY_PROVIDER_VICTRON_SMARTSHUNT
         case 3:
             _upProvider = std::make_unique<VictronSmartShunt::Provider>();
             break;
+#endif
+#if OPENDTU_FEATURE_BATTERY_PROVIDER_PYTES
         case 4:
             _upProvider = std::make_unique<Pytes::Provider>();
             break;
+#endif
+#if OPENDTU_FEATURE_BATTERY_PROVIDER_SBS
         case 5:
             _upProvider = std::make_unique<SBS::Provider>();
             break;
+#endif
+#if OPENDTU_FEATURE_BATTERY_PROVIDER_JBDBMS
         case 6:
             _upProvider = std::make_unique<JbdBms::Provider>();
             break;
+#endif
+#if OPENDTU_FEATURE_BATTERY_PROVIDER_ZENDURE
         case 7:
             _upProvider = std::make_unique<Zendure::Provider>();
             break;
+#endif
         default:
-            DTU_LOGE("Unknown provider: %d", config.Battery.Provider);
+            DTU_LOGW("Configured battery provider %u not available in this build", static_cast<unsigned>(config.Battery.Provider));
             return;
     }
 

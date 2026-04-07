@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #pragma once
 
+#include "FeatureFlags.h"
 #include "Configuration.h"
 #include "PowerLimiterInverter.h"
 #include <espMqttClient.h>
@@ -110,4 +111,6 @@ private:
     bool isSolarPassThroughEnabled() const;
 };
 
+#if OPENDTU_FEATURE_POWERLIMITER
 extern PowerLimiterClass PowerLimiter;
+#endif

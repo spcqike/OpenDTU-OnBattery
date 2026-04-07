@@ -6,14 +6,19 @@
 #include "ArduinoJson.h"
 #include "AsyncJson.h"
 #include "Configuration.h"
-#include "MqttHandleHass.h"
+#include "FeatureFlags.h"
 #include "MqttSettings.h"
-#include "PowerLimiter.h"
 #include <powermeter/Controller.h>
+#if OPENDTU_FEATURE_POWERMETER_PROVIDER_HTTP_JSON
 #include <powermeter/json/http/Provider.h>
+#endif
+#if OPENDTU_FEATURE_POWERMETER_PROVIDER_HTTP_SML
 #include <powermeter/sml/http/Provider.h>
+#endif
 #include "WebApi.h"
 #include "helper.h"
+
+#if OPENDTU_FEATURE_POWERMETER
 
 void WebApiPowerMeterClass::init(AsyncWebServer& server, Scheduler& scheduler)
 {
@@ -24,8 +29,12 @@ void WebApiPowerMeterClass::init(AsyncWebServer& server, Scheduler& scheduler)
     _server->on("/api/powermeter/status", HTTP_GET, static_cast<ArRequestHandlerFunction>(std::bind(&WebApiPowerMeterClass::onStatus, this, _1)));
     _server->on("/api/powermeter/config", HTTP_GET, static_cast<ArRequestHandlerFunction>(std::bind(&WebApiPowerMeterClass::onAdminGet, this, _1)));
     _server->on("/api/powermeter/config", HTTP_POST, static_cast<ArRequestHandlerFunction>(std::bind(&WebApiPowerMeterClass::onAdminPost, this, _1)));
+#if OPENDTU_FEATURE_POWERMETER_PROVIDER_HTTP_JSON
     _server->on("/api/powermeter/testhttpjsonrequest", HTTP_POST, static_cast<ArRequestHandlerFunction>(std::bind(&WebApiPowerMeterClass::onTestHttpJsonRequest, this, _1)));
+#endif
+#if OPENDTU_FEATURE_POWERMETER_PROVIDER_HTTP_SML
     _server->on("/api/powermeter/testhttpsmlrequest", HTTP_POST, static_cast<ArRequestHandlerFunction>(std::bind(&WebApiPowerMeterClass::onTestHttpSmlRequest, this, _1)));
+#endif
 }
 
 void WebApiPowerMeterClass::onStatus(AsyncWebServerRequest* request)
@@ -89,6 +98,50 @@ void WebApiPowerMeterClass::onAdminPost(AsyncWebServerRequest* request)
         return;
     }
 
+    auto isSourceAvailable = [](PowerMeters::Provider::Type type) -> bool {
+        switch (type) {
+#if OPENDTU_FEATURE_POWERMETER_PROVIDER_MQTT
+            case PowerMeters::Provider::Type::MQTT:
+                return true;
+#endif
+#if OPENDTU_FEATURE_POWERMETER_PROVIDER_SDM
+            case PowerMeters::Provider::Type::SDM1PH:
+            case PowerMeters::Provider::Type::SDM3PH:
+                return true;
+#endif
+#if OPENDTU_FEATURE_POWERMETER_PROVIDER_HTTP_JSON
+            case PowerMeters::Provider::Type::HTTP_JSON:
+                return true;
+#endif
+#if OPENDTU_FEATURE_POWERMETER_PROVIDER_SERIAL_SML
+            case PowerMeters::Provider::Type::SERIAL_SML:
+                return true;
+#endif
+#if OPENDTU_FEATURE_POWERMETER_PROVIDER_SMAHM2
+            case PowerMeters::Provider::Type::SMAHM2:
+                return true;
+#endif
+#if OPENDTU_FEATURE_POWERMETER_PROVIDER_HTTP_SML
+            case PowerMeters::Provider::Type::HTTP_SML:
+                return true;
+#endif
+#if OPENDTU_FEATURE_POWERMETER_PROVIDER_MODBUS_UDP_VICTRON
+            case PowerMeters::Provider::Type::MODBUS_UDP_VICTRON:
+                return true;
+#endif
+            default:
+                return false;
+        }
+    };
+
+    auto sourceType = static_cast<PowerMeters::Provider::Type>(root["source"].as<uint8_t>());
+    if (!isSourceAvailable(sourceType)) {
+        retMsg["message"] = "Selected source is not available in this firmware build!";
+        response->setLength();
+        request->send(response);
+        return;
+    }
+
     auto checkHttpConfig = [&](JsonObject const& cfg) -> bool {
         if (!cfg["url"].is<String>()
                 || (!cfg["url"].as<String>().startsWith("http://")
@@ -118,7 +171,7 @@ void WebApiPowerMeterClass::onAdminPost(AsyncWebServerRequest* request)
         return true;
     };
 
-    if (static_cast<::PowerMeters::Provider::Type>(root["source"].as<uint8_t>()) == ::PowerMeters::Provider::Type::HTTP_JSON) {
+    if (sourceType == ::PowerMeters::Provider::Type::HTTP_JSON) {
         JsonObject httpJson = root["http_json"];
         JsonArray valueConfigs = httpJson["values"];
         for (uint8_t i = 0; i < valueConfigs.size(); i++) {
@@ -144,14 +197,14 @@ void WebApiPowerMeterClass::onAdminPost(AsyncWebServerRequest* request)
         }
     }
 
-    if (static_cast<::PowerMeters::Provider::Type>(root["source"].as<uint8_t>()) == ::PowerMeters::Provider::Type::HTTP_SML) {
+    if (sourceType == ::PowerMeters::Provider::Type::HTTP_SML) {
         JsonObject httpSml = root["http_sml"];
         if (!checkHttpConfig(httpSml["http_request"].as<JsonObject>())) {
             return;
         }
     }
 
-    if (static_cast<::PowerMeters::Provider::Type>(root["source"].as<uint8_t>()) == ::PowerMeters::Provider::Type::MODBUS_UDP_VICTRON) {
+    if (sourceType == ::PowerMeters::Provider::Type::MODBUS_UDP_VICTRON) {
         JsonObject udpVictron = root["udp_victron"];
         if (!udpVictron["ip_address"].is<String>()
                 || udpVictron["ip_address"].as<String>().length() == 0) {
@@ -213,6 +266,13 @@ void WebApiPowerMeterClass::onTestHttpJsonRequest(AsyncWebServerRequest* request
 
     auto& retMsg = asyncJsonResponse->getRoot();
 
+#if !OPENDTU_FEATURE_POWERMETER_PROVIDER_HTTP_JSON
+    retMsg["message"] = "HTTP JSON provider is disabled in this build";
+    asyncJsonResponse->setCode(400);
+    asyncJsonResponse->setLength();
+    request->send(asyncJsonResponse);
+    return;
+#else
     char response[256];
 
     auto powerMeterConfig = std::make_unique<PowerMeterHttpJsonConfig>();
@@ -247,7 +307,10 @@ void WebApiPowerMeterClass::onTestHttpJsonRequest(AsyncWebServerRequest* request
     retMsg["message"] = response;
     asyncJsonResponse->setLength();
     request->send(asyncJsonResponse);
+#endif
 }
+
+#endif // OPENDTU_FEATURE_POWERMETER
 
 void WebApiPowerMeterClass::onTestHttpSmlRequest(AsyncWebServerRequest* request)
 {
@@ -263,6 +326,13 @@ void WebApiPowerMeterClass::onTestHttpSmlRequest(AsyncWebServerRequest* request)
 
     auto& retMsg = asyncJsonResponse->getRoot();
 
+#if !OPENDTU_FEATURE_POWERMETER_PROVIDER_HTTP_SML
+    retMsg["message"] = "HTTP SML provider is disabled in this build";
+    asyncJsonResponse->setCode(400);
+    asyncJsonResponse->setLength();
+    request->send(asyncJsonResponse);
+    return;
+#else
     char response[256];
 
     auto powerMeterConfig = std::make_unique<PowerMeterHttpSmlConfig>();
@@ -281,4 +351,5 @@ void WebApiPowerMeterClass::onTestHttpSmlRequest(AsyncWebServerRequest* request)
     retMsg["message"] = response;
     asyncJsonResponse->setLength();
     request->send(asyncJsonResponse);
+#endif
 }

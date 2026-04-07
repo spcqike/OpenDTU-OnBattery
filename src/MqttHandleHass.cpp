@@ -2,6 +2,8 @@
 /*
  * Copyright (C) 2022-2026 Thomas Basler and others
  */
+#include "FeatureFlags.h"
+#if OPENDTU_FEATURE_MQTT_HASS
 #include "MqttHandleHass.h"
 #include "MqttHandleInverter.h"
 #include "MqttSettings.h"
@@ -432,3 +434,4 @@ void MqttHandleHassClass::publishInverterSensor(
     createInverterInfo(root, inv);
     publishSensor(root, "dtu_" + serial, serial, name, serial + "/" + state_topic, unit_of_measure, icon, device_class, state_class, category);
 }
+#endif

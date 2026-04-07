@@ -5,9 +5,12 @@
 #include "MqttSettings.h"
 #include "MqttHandlePowerLimiter.h"
 #include "PowerLimiter.h"
+#include "FeatureFlags.h"
 #include <ctime>
 #include <string>
 #include <LogHelper.h>
+
+#if OPENDTU_FEATURE_POWERLIMITER
 
 #undef TAG
 static const char* TAG = "dynamicPowerLimiter";
@@ -209,3 +212,5 @@ void MqttHandlePowerLimiterClass::onMqttCmd(MqttPowerLimiterCommand command, con
     // not reached if the value did not change
     Configuration.write();
 }
+
+#endif // OPENDTU_FEATURE_POWERLIMITER
