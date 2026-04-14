@@ -572,7 +572,7 @@ void ConfigurationClass::deserializePowerMeterUdpVictronConfig(JsonObject const&
 void ConfigurationClass::deserializePowerMeterAveragingConfig(JsonObject const& source, PowerMeterAveragingConfig& target)
 {
     target.Enabled = source["enabled"] | POWERMETER_AVERAGING_ENABLED;
-    target.WindowMode = static_cast<PowerMeterAveragingConfig::Mode>(source["mode"] | POWERMETER_AVERAGING_MODE);
+    target.WindowMode = source["mode"] | PowerMeterAveragingConfig::Mode::Samples;
     target.WindowSize = source["window"] | POWERMETER_AVERAGING_WINDOW;
     target.WindowSize = std::max<uint16_t>(1, target.WindowSize);
 }

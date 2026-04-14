@@ -420,7 +420,22 @@ export default defineComponent({
                 : this.$t('powermeteradmin.seconds').toString();
         },
     },
+    watch: {
+        'powerMeterConfigList.averaging.mode'() {
+            this.clampAveragingWindow();
+        },
+    },
     methods: {
+        clampAveragingWindow() {
+            if (!this.powerMeterConfigList.averaging) {
+                return;
+            }
+
+            this.powerMeterConfigList.averaging.window = Math.max(
+                1,
+                Math.min(this.powerMeterConfigList.averaging.window, this.averagingWindowMax)
+            );
+        },
         getPowerMeterConfig() {
             this.dataLoading = true;
             fetch('/api/powermeter/config', { headers: authHeader() })
@@ -430,11 +445,13 @@ export default defineComponent({
                     if (!this.powerMeterConfigList.averaging) {
                         this.powerMeterConfigList.averaging = { enabled: false, mode: 0, window: 10 };
                     }
+                    this.clampAveragingWindow();
                     this.dataLoading = false;
                 });
         },
         savePowerMeterConfig(e: Event) {
             e.preventDefault();
+            this.clampAveragingWindow();
 
             const formData = new FormData();
             formData.append('data', JSON.stringify(this.powerMeterConfigList));
@@ -458,6 +475,7 @@ export default defineComponent({
                 type: 'info',
                 show: true,
             };
+            this.clampAveragingWindow();
 
             const formData = new FormData();
             formData.append('data', JSON.stringify(this.powerMeterConfigList));
@@ -482,6 +500,7 @@ export default defineComponent({
                 type: 'info',
                 show: true,
             };
+            this.clampAveragingWindow();
 
             const formData = new FormData();
             formData.append('data', JSON.stringify(this.powerMeterConfigList));
