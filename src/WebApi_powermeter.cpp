@@ -37,12 +37,8 @@ void WebApiPowerMeterClass::init(AsyncWebServer& server, Scheduler& scheduler)
 #endif
 }
 
-void WebApiPowerMeterClass::onStatus(AsyncWebServerRequest* request)
+void WebApiPowerMeterClass::generateStatus(AsyncWebServerRequest* request, bool includeCredentials)
 {
-    if (!WebApi.checkCredentialsReadonly(request)) {
-        return;
-    }
-
     AsyncJsonResponse* response = new AsyncJsonResponse();
     auto& root = response->getRoot();
     auto const& config = Configuration.get();
@@ -57,15 +53,24 @@ void WebApiPowerMeterClass::onStatus(AsyncWebServerRequest* request)
     Configuration.serializePowerMeterSerialSdmConfig(config.PowerMeter.SerialSdm, serialSdm);
 
     auto httpJson = root["http_json"].to<JsonObject>();
-    Configuration.serializePowerMeterHttpJsonConfig(config.PowerMeter.HttpJson, httpJson);
+    Configuration.serializePowerMeterHttpJsonConfig(config.PowerMeter.HttpJson, httpJson, includeCredentials);
 
     auto httpSml = root["http_sml"].to<JsonObject>();
-    Configuration.serializePowerMeterHttpSmlConfig(config.PowerMeter.HttpSml, httpSml);
+    Configuration.serializePowerMeterHttpSmlConfig(config.PowerMeter.HttpSml, httpSml, includeCredentials);
 
     auto udpVictron = root["udp_victron"].to<JsonObject>();
     Configuration.serializePowerMeterUdpVictronConfig(config.PowerMeter.UdpVictron, udpVictron);
 
     WebApi.sendJsonResponse(request, response, __FUNCTION__, __LINE__);
+}
+
+void WebApiPowerMeterClass::onStatus(AsyncWebServerRequest* request)
+{
+    if (!WebApi.checkCredentialsReadonly(request)) {
+        return;
+    }
+
+    this->generateStatus(request, false);
 }
 
 void WebApiPowerMeterClass::onAdminGet(AsyncWebServerRequest* request)
@@ -74,7 +79,7 @@ void WebApiPowerMeterClass::onAdminGet(AsyncWebServerRequest* request)
         return;
     }
 
-    this->onStatus(request);
+    this->generateStatus(request, true);
 }
 
 void WebApiPowerMeterClass::onAdminPost(AsyncWebServerRequest* request)

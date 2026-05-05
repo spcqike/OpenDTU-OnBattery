@@ -24,7 +24,8 @@
 #include <battery/victronsmartshunt/Provider.h>
 #endif
 #if OPENDTU_FEATURE_BATTERY_PROVIDER_ZENDURE
-#include <battery/zendure/Provider.h>
+#include <battery/zendure/LocalMqttProvider.h>
+#include <battery/zendure/ZendureMqttProvider.h>
 #endif
 #include <Configuration.h>
 #include <LogHelper.h>
@@ -111,7 +112,17 @@ void Controller::updateSettings()
 #endif
 #if OPENDTU_FEATURE_BATTERY_PROVIDER_ZENDURE
         case 7:
-            _upProvider = std::make_unique<Zendure::Provider>();
+            switch (config.Battery.Zendure.ConnectionType) {
+                case BatteryZendureConfig::ConnectionType_t::LocalMqtt:
+                    _upProvider = std::make_unique<Zendure::LocalMqttProvider>();
+                    break;
+                case BatteryZendureConfig::ConnectionType_t::ZendureMqtt:
+                    _upProvider = std::make_unique<Zendure::ZendureMqttProvider>();
+                    break;
+                default:
+                    DTU_LOGE("Unknown Zendure connection type: %d", config.Battery.Zendure.ConnectionType);
+                    return;
+            }
             break;
 #endif
         default:
