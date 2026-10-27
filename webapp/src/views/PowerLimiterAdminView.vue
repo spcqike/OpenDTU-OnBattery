@@ -54,6 +54,8 @@
                         :label="$t('powerlimiteradmin.GovernInverter', { name: inverterName(inv.serial) })"
                         v-model="inv.is_governed"
                         type="checkbox"
+                        :disabled="isModbusControlled(inv.serial) && !inv.is_governed"
+                        :tooltip="isModbusControlled(inv.serial) ? $t('powerlimiteradmin.ModbusConflict') : undefined"
                         wide
                     />
                 </template>
@@ -531,6 +533,9 @@ export default defineComponent({
         },
     },
     methods: {
+        isModbusControlled(serial: string): boolean {
+            return this.getInverterInfo(serial).modbus_controlled === true;
+        },
         getInverterInfo(serial: string): PowerLimiterInverterInfo {
             return (
                 this.powerLimiterMetaData.inverters?.find((inv: PowerLimiterInverterInfo) => inv.serial === serial) ||

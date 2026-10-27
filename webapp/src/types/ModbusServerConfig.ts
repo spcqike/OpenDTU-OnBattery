@@ -13,4 +13,5 @@ export interface ModbusServerInverterMetadata {
     serial: string;
     name: string;
     type: string;
+    dpl_governed: boolean;
 }

@@ -6,6 +6,8 @@
 #include "ArduinoJson.h"
 #include "AsyncJson.h"
 #include "Configuration.h"
+#include "InverterControlOwnership.h"
+#include "modbus/ModbusServer.h"
 #include "MqttHandlePowerLimiterHass.h"
 #include "PowerLimiter.h"
 #include "WebApi.h"
@@ -70,6 +72,7 @@ void WebApiPowerLimiterClass::onMetaData(AsyncWebServerRequest* request)
         auto channels = inv->Statistics()->getChannelsByType(TYPE_DC);
         obj["channels"] = channels.size();
         obj["pdl_supported"] = inv->supportsPowerDistributionLogic();
+        obj["modbus_controlled"] = InverterControlOwnership::isControlledByModbus(config, config.Inverter[i].Serial);
     }
 
     WebApi.sendJsonResponse(request, response, __FUNCTION__, __LINE__);
@@ -98,6 +101,25 @@ void WebApiPowerLimiterClass::onAdminPost(AsyncWebServerRequest* request)
 
     auto& retMsg = response->getRoot();
 
+    if (root["enabled"] | false) {
+        auto const& config = Configuration.get();
+        for (JsonObjectConst inverter : root["inverters"].as<JsonArrayConst>()) {
+            if (!(inverter["is_governed"] | false)) { continue; }
+
+            auto const serialText = inverter["serial"] | "0";
+            char* serialEnd = nullptr;
+            auto const serial = strtoull(serialText, &serialEnd, 16);
+            if (serial != 0 && *serialEnd == '\0'
+                    && InverterControlOwnership::isControlledByModbus(config, serial)) {
+                retMsg["message"] = "An inverter cannot be controlled by both the Dynamic Power Limiter and Modbus/SunSpec!";
+                retMsg["code"] = WebApiError::InverterControlConflict;
+                response->setLength();
+                request->send(response);
+                return;
+            }
+        }
+    }
+
     {
         auto guard = Configuration.getWriteGuard();
         auto& config = guard.getConfig();
@@ -110,6 +132,7 @@ void WebApiPowerLimiterClass::onAdminPost(AsyncWebServerRequest* request)
     request->send(response);
 
     PowerLimiter.triggerReloadingConfig();
+    ModbusServer.updateSettings();
 
     // potentially make thresholds auto-discoverable
     MqttHandlePowerLimiterHass.forceUpdate();

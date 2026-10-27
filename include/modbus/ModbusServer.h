@@ -3,6 +3,7 @@
 
 #include "Configuration.h"
 #include "modbus/sunspec/SunSpecCommonModel1.h"
+#include "modbus/sunspec/SunSpecImmediateControlsModel123.h"
 #include "modbus/sunspec/SunSpecInverterModel101_103.h"
 #include "modbus/sunspec/SunSpecNameplateModel120.h"
 #include <Arduino.h>
@@ -51,7 +52,14 @@ private:
         + (2 + SunSpecCommonModel1::kLength)
         + (2 + SunSpecInverterModel101_103::kLength)
         + (2 + SunSpecNameplateModel120::kLength)
+        + (2 + SunSpecImmediateControlsModel123::kLength)
         + 2; // End marker
+
+    static constexpr uint16_t kImmediateControlModelOffset =
+        2
+        + (2 + SunSpecCommonModel1::kLength)
+        + (2 + SunSpecInverterModel101_103::kLength)
+        + (2 + SunSpecNameplateModel120::kLength);
 
     struct Client {
         WiFiClient      tcp;
@@ -59,8 +67,14 @@ private:
         uint32_t        lastActivityMs = 0;
     };
 
+    struct ControlSlot {
+        uint64_t Serial = 0;
+        SunSpecImmediateControlsModel123::State State;
+    };
+
     WiFiServer _server;
     std::array<Client, kMaxClients> _clients;
+    std::array<ControlSlot, INV_MAX_COUNT> _controls;
     Task _loopTask;
     std::mutex _mutex; // guards _server/_clients/_cfg across threads
     // Snapshot of Configuration.get().ModbusServer, taken in updateSettings().
@@ -73,11 +87,19 @@ private:
     bool tryProcessFrame(Client& c);
     void handleReadRegs(WiFiClient& tcp, uint16_t tid, uint8_t unitId,
                         uint16_t startAddr, uint16_t regCount);
+    void handleWriteRegs(WiFiClient& tcp, uint16_t tid, uint8_t unitId,
+                         uint16_t startAddr, uint16_t regCount,
+                         uint8_t const* data, uint8_t byteCount);
     bool sendFrame(WiFiClient& tcp, const uint8_t* data, size_t len);
     void sendException(WiFiClient& tcp, uint16_t tid, uint8_t unitId,
                        uint8_t fc, uint8_t code);
     std::shared_ptr<InverterAbstract> unitIdToInverter(uint8_t unitId) const;
-    void fillRegisters(uint16_t* regs, std::shared_ptr<InverterAbstract> const& inv, uint8_t unitId) const;
+    ControlSlot* unitIdToControlSlot(uint8_t unitId);
+    ControlSlot const* unitIdToControlSlot(uint8_t unitId) const;
+    bool sendPowerLimit(std::shared_ptr<InverterAbstract> const& inv, float percent) const;
+    void serviceControlTimeouts();
+    void fillRegisters(uint16_t* regs, std::shared_ptr<InverterAbstract> const& inv,
+                       uint8_t unitId, SunSpecImmediateControlsModel123::State const& control) const;
 };
 
 extern ModbusServerClass ModbusServer;

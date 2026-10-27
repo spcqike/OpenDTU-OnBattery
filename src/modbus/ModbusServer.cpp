@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "modbus/ModbusServer.h"
 #include "Configuration.h"
+#include "InverterControlOwnership.h"
 #include <Hoymiles.h>
 #include <functional>
 #include <memory>
@@ -33,6 +34,13 @@ void ModbusServerClass::updateSettings()
     std::lock_guard<std::mutex> lock(_mutex);
 
     _loopTask.disable();
+    for (auto& control : _controls) {
+        if (control.Serial != 0 && control.State.Enabled) {
+            auto inv = Hoymiles.getInverterBySerial(control.Serial);
+            if (inv) { sendPowerLimit(inv, 100.0f); }
+        }
+        control = {};
+    }
     for (auto& c : _clients) {
         if (c.tcp) c.tcp.stop();
         c.buf.clear();
@@ -44,6 +52,18 @@ void ModbusServerClass::updateSettings()
     if (!cfg.Enabled) {
         ESP_LOGI(TAG, "SunSpec/Modbus TCP server disabled");
         return;
+    }
+
+    auto const& liveConfig = Configuration.get();
+    for (size_t i = 0; i < INV_MAX_COUNT; ++i) {
+        auto const serial = cfg.Inverter[i].Serial;
+        if (serial == 0) { break; }
+        if (InverterControlOwnership::isGovernedByDpl(liveConfig, serial)) {
+            ESP_LOGE(TAG, "Inverter %04X%08X is governed by DPL; disabling its Modbus control mapping",
+                     static_cast<uint16_t>(serial >> 32), static_cast<uint32_t>(serial));
+            continue;
+        }
+        _controls[i].Serial = serial;
     }
     _server = WiFiServer(cfg.Port);
     _server.begin();
@@ -58,6 +78,8 @@ void ModbusServerClass::updateSettings()
 void ModbusServerClass::loop()
 {
     std::lock_guard<std::mutex> lock(_mutex);
+
+    serviceControlTimeouts();
 
     bool anyFreeSlot = false;
     for (auto& c : _clients) {
@@ -167,10 +189,19 @@ bool ModbusServerClass::tryProcessFrame(Client& c)
     uint8_t  unitId = c.buf[6];
     uint8_t  fc     = c.buf[7];
 
-    if (fc == 0x03 && pduLen >= 6) {
+    if (fc == 0x03 && pduLen == 6) {
         uint16_t startAddr = (static_cast<uint16_t>(c.buf[8]) << 8)  | c.buf[9];
         uint16_t regCount  = (static_cast<uint16_t>(c.buf[10]) << 8) | c.buf[11];
         handleReadRegs(c.tcp, tid, unitId, startAddr, regCount);
+    } else if (fc == 0x10 && pduLen >= 7) {
+        uint16_t startAddr = (static_cast<uint16_t>(c.buf[8]) << 8)  | c.buf[9];
+        uint16_t regCount  = (static_cast<uint16_t>(c.buf[10]) << 8) | c.buf[11];
+        uint8_t byteCount  = c.buf[12];
+        if (pduLen != static_cast<uint16_t>(7 + byteCount)) {
+            sendException(c.tcp, tid, unitId, fc, 0x03); // ILLEGAL DATA VALUE
+        } else {
+            handleWriteRegs(c.tcp, tid, unitId, startAddr, regCount, c.buf.data() + 13, byteCount);
+        }
     } else {
         ESP_LOGD(TAG, "Unsupported function code 0x%02X from unit %u", fc, unitId);
         sendException(c.tcp, tid, unitId, fc, 0x01); // ILLEGAL FUNCTION
@@ -217,7 +248,11 @@ void ModbusServerClass::handleReadRegs(WiFiClient& client, uint16_t tid, uint8_t
     ESP_LOGV(TAG, "Read regs: unit=%u start=%u count=%u", unitId, startAddr, regCount);
 
     uint16_t regs[kTotalRegs] = {};
-    fillRegisters(regs, inv, unitId);
+    auto const* control = unitIdToControlSlot(unitId);
+    if (!control) {
+        sendException(client, tid, unitId, 0x03, 0x02); return;
+    }
+    fillRegisters(regs, inv, unitId, control->State);
 
     uint16_t offset    = startAddr - kBase;
     uint8_t  byteCount = static_cast<uint8_t>(regCount * 2);
@@ -242,6 +277,59 @@ void ModbusServerClass::handleReadRegs(WiFiClient& client, uint16_t tid, uint8_t
                  client.remoteIP().toString().c_str());
         client.stop();
     }
+}
+
+// ---------------------------------------------------------------------------
+// FC 0x10 – Write Multiple Holding Registers (SunSpec model 123 only)
+// ---------------------------------------------------------------------------
+
+void ModbusServerClass::handleWriteRegs(WiFiClient& client, uint16_t tid, uint8_t unitId,
+                                         uint16_t startAddr, uint16_t regCount,
+                                         uint8_t const* data, uint8_t byteCount)
+{
+    if (regCount == 0 || regCount > 123 || byteCount != regCount * 2) {
+        sendException(client, tid, unitId, 0x10, 0x03); return;
+    }
+
+    auto inv = unitIdToInverter(unitId);
+    auto* control = unitIdToControlSlot(unitId);
+    if (!inv || !control) {
+        sendException(client, tid, unitId, 0x10, 0x02); return;
+    }
+
+    auto const modelAddress = static_cast<uint32_t>(kBase) + kImmediateControlModelOffset;
+    if (startAddr < modelAddress) {
+        sendException(client, tid, unitId, 0x10, 0x02); return;
+    }
+
+    std::array<uint16_t, 123> values = {};
+    for (uint16_t i = 0; i < regCount; ++i) {
+        values[i] = (static_cast<uint16_t>(data[i * 2]) << 8) | data[i * 2 + 1];
+    }
+
+    auto nextState = control->State;
+    auto const result = SunSpecImmediateControlsModel123::write(
+        nextState, static_cast<uint16_t>(startAddr - modelAddress),
+        values.data(), regCount, millis());
+    if (!result.Accepted) {
+        sendException(client, tid, unitId, 0x10, 0x03); return;
+    }
+    if (result.ApplyLimit && !sendPowerLimit(inv, result.LimitPercent)) {
+        sendException(client, tid, unitId, 0x10, 0x04); return; // SLAVE DEVICE FAILURE
+    }
+
+    control->State = nextState;
+    ESP_LOGI(TAG, "Unit %u SunSpec power limit: %.2f %% (%s, revert %u s)",
+             unitId, result.LimitPercent, nextState.Enabled ? "enabled" : "disabled",
+             nextState.RevertSeconds);
+
+    uint8_t resp[12] = {
+        static_cast<uint8_t>(tid >> 8), static_cast<uint8_t>(tid & 0xFF),
+        0x00, 0x00, 0x00, 0x06, unitId, 0x10,
+        static_cast<uint8_t>(startAddr >> 8), static_cast<uint8_t>(startAddr & 0xFF),
+        static_cast<uint8_t>(regCount >> 8), static_cast<uint8_t>(regCount & 0xFF)
+    };
+    if (!sendFrame(client, resp, sizeof(resp))) { client.stop(); }
 }
 
 // ---------------------------------------------------------------------------
@@ -290,10 +378,54 @@ std::shared_ptr<InverterAbstract> ModbusServerClass::unitIdToInverter(uint8_t un
     for (size_t i = 0; i < INV_MAX_COUNT; ++i) {
         if (cfg.Inverter[i].Serial == 0ULL) { break; }
         if (cfg.Inverter[i].UnitId == unitId) {
+            if (_controls[i].Serial != cfg.Inverter[i].Serial) { return nullptr; }
             return Hoymiles.getInverterBySerial(cfg.Inverter[i].Serial);
         }
     }
     return nullptr;
+}
+
+ModbusServerClass::ControlSlot* ModbusServerClass::unitIdToControlSlot(uint8_t unitId)
+{
+    return const_cast<ControlSlot*>(static_cast<ModbusServerClass const*>(this)->unitIdToControlSlot(unitId));
+}
+
+ModbusServerClass::ControlSlot const* ModbusServerClass::unitIdToControlSlot(uint8_t unitId) const
+{
+    for (size_t i = 0; i < INV_MAX_COUNT; ++i) {
+        if (_cfg.Inverter[i].Serial == 0) { break; }
+        if (_cfg.Inverter[i].UnitId == unitId && _controls[i].Serial == _cfg.Inverter[i].Serial) {
+            return &_controls[i];
+        }
+    }
+    return nullptr;
+}
+
+bool ModbusServerClass::sendPowerLimit(std::shared_ptr<InverterAbstract> const& inv, float percent) const
+{
+    if (!inv || !inv->getEnableCommands() || inv->DevInfo()->getMaxPower() == 0) { return false; }
+    if (inv->SystemConfigPara()->getLastLimitCommandSuccess() == CMD_PENDING) { return false; }
+
+    inv->sendActivePowerControlRequest(percent, PowerLimitControlType::RelativNonPersistent);
+    return true;
+}
+
+void ModbusServerClass::serviceControlTimeouts()
+{
+    auto const now = millis();
+    for (auto& control : _controls) {
+        if (control.Serial == 0) { continue; }
+
+        auto nextState = control.State;
+        if (!SunSpecImmediateControlsModel123::expire(nextState, now)) { continue; }
+
+        auto inv = Hoymiles.getInverterBySerial(control.Serial);
+        if (!sendPowerLimit(inv, 100.0f)) { continue; }
+
+        control.State = nextState;
+        ESP_LOGW(TAG, "SunSpec power-limit watchdog expired; restored inverter %04X%08X to 100 %%",
+                 static_cast<uint16_t>(control.Serial >> 32), static_cast<uint32_t>(control.Serial));
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -302,7 +434,9 @@ std::shared_ptr<InverterAbstract> ModbusServerClass::unitIdToInverter(uint8_t un
 // simpler than caching, and always reflects live inverter state.
 // ---------------------------------------------------------------------------
 
-void ModbusServerClass::fillRegisters(uint16_t* regs, std::shared_ptr<InverterAbstract> const& inv, uint8_t unitId) const
+void ModbusServerClass::fillRegisters(uint16_t* regs, std::shared_ptr<InverterAbstract> const& inv,
+                                     uint8_t unitId,
+                                     SunSpecImmediateControlsModel123::State const& control) const
 {
     uint16_t offset = 0;
 
@@ -325,6 +459,11 @@ void ModbusServerClass::fillRegisters(uint16_t* regs, std::shared_ptr<InverterAb
     regs[offset + 1] = SunSpecNameplateModel120::length();
     SunSpecNameplateModel120::fill(regs + offset + 2, inv, unitId);
     offset += 2 + SunSpecNameplateModel120::length();
+
+    regs[offset + 0] = SunSpecImmediateControlsModel123::id();
+    regs[offset + 1] = SunSpecImmediateControlsModel123::length();
+    SunSpecImmediateControlsModel123::fill(regs + offset + 2, control);
+    offset += 2 + SunSpecImmediateControlsModel123::length();
 
     // End marker
     regs[offset + 0] = 0xFFFF;

@@ -706,11 +706,13 @@
         "Inverter": "Inverter",
         "UnitId": "Unit ID",
         "DuplicateUnitId": "Duplicate unit ID: each inverter needs a unique unit ID!",
+        "DplConflict": "Unavailable while this inverter is governed by the Dynamic Power Limiter.",
         "ExposedModelsHeading": "Exposed SunSpec Models",
         "ExposedModelsIntro": "For each enabled inverter, we expose data using the following SunSpec models:",
         "ExposedModel1": "Model 1 (Common) — manufacturer, model name, firmware version, serial number",
         "ExposedModel101103": "Model 101 / 103 (Inverter) — AC current, voltage, power, reactive power, power factor, frequency, energy, temperature and operating state. Single-phase inverters use model 101, three-phase inverters use model 103, chosen automatically.",
-        "ExposedModel120": "Model 120 (Nameplate) — maximum power rating"
+        "ExposedModel120": "Model 120 (Nameplate) — maximum power rating",
+        "ExposedModel123": "Model 123 (Immediate Controls) — writable active-power limit for Victron Venus OS, including automatic timeout/revert"
     },
     "powerlimiteradmin": {
         "PowerLimiterSettings": "Dynamic Power Limiter Settings",
@@ -728,6 +730,7 @@
         "General": "General",
         "Enable": "Enable",
         "GovernInverter": "Govern Inverter \"{name}\"",
+        "ModbusConflict": "Unavailable while this inverter is controlled through Modbus/SunSpec.",
         "EnableSolarPassthrough": "Enable Solar-Passthrough",
         "ConductionLosses": "Conduction Losses",
         "ConductionLossesInfo": "Conduction losses are to be expected when transferring energy from the solar charge controller or from the battery to the inverter. These losses are taken into account to calculate better suited inverter limits.",

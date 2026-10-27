@@ -57,11 +57,18 @@
                                         class="form-check-input"
                                         type="checkbox"
                                         :checked="isEnabled(i.serial)"
+                                        :disabled="i.dpl_governed && !isEnabled(i.serial)"
+                                        :title="i.dpl_governed ? $t('modbusserveradmin.DplConflict') : ''"
                                         @change="toggleInverter(i.serial, ($event.target as HTMLInputElement).checked)"
                                     />
                                 </div>
                             </td>
-                            <td>{{ i.name }} ({{ i.type }})</td>
+                            <td>
+                                {{ i.name }} ({{ i.type }})
+                                <div v-if="i.dpl_governed" class="form-text text-warning">
+                                    {{ $t('modbusserveradmin.DplConflict') }}
+                                </div>
+                            </td>
                             <td>
                                 <input
                                     class="form-control"
@@ -89,6 +96,7 @@
                     <li>{{ $t('modbusserveradmin.ExposedModel1') }}</li>
                     <li>{{ $t('modbusserveradmin.ExposedModel101103') }}</li>
                     <li>{{ $t('modbusserveradmin.ExposedModel120') }}</li>
+                    <li>{{ $t('modbusserveradmin.ExposedModel123') }}</li>
                 </ul>
             </div>
 

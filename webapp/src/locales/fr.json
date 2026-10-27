@@ -692,6 +692,24 @@
         "InvalidJson": "JSON file is formatted incorrectly.",
         "InvalidJsonContent": "JSON file has the wrong content."
     },
+    "modbusserveradmin": {
+        "ModbusServerSettings": "Paramètres du serveur Modbus",
+        "General": "Général",
+        "Enable": "Activer",
+        "Port": "Port TCP",
+        "InverterMapping": "Configuration des onduleurs",
+        "InverterMappingHint": "Chaque onduleur exposé via Modbus nécessite un ID d’unité unique (1–247).",
+        "Inverter": "Onduleur",
+        "UnitId": "ID d’unité",
+        "DuplicateUnitId": "ID d’unité en double : chaque onduleur nécessite un ID unique !",
+        "DplConflict": "Indisponible tant que cet onduleur est contrôlé par le Dynamic Power Limiter.",
+        "ExposedModelsHeading": "Modèles SunSpec exposés",
+        "ExposedModelsIntro": "Pour chaque onduleur activé, les modèles SunSpec suivants sont exposés :",
+        "ExposedModel1": "Modèle 1 (Common) — fabricant, modèle, micrologiciel et numéro de série",
+        "ExposedModel101103": "Modèle 101 / 103 (Inverter) — mesures CA, énergie et état de fonctionnement",
+        "ExposedModel120": "Modèle 120 (Nameplate) — puissance nominale maximale",
+        "ExposedModel123": "Modèle 123 (Immediate Controls) — limite de puissance active inscriptible pour Victron Venus OS avec expiration et réinitialisation automatiques"
+    },
     "powerlimiteradmin": {
         "PowerLimiterSettings": "Dynamic Power Limiter Settings",
         "ConfigAlertMessage": "One or more prerequisites for operating the Dynamic Power Limiter are not met.",
@@ -706,6 +724,7 @@
         "General": "General",
         "Enable": "Enable",
         "GovernInverter": "Govern Inverter \"{name}\"",
+        "ModbusConflict": "Indisponible tant que cet onduleur est contrôlé via Modbus/SunSpec.",
         "EnableSolarPassthrough": "Enable Solar-Passthrough",
         "ConductionLosses": "Conduction Losses",
         "ConductionLossesInfo": "Conduction losses are to be expected when transferring energy from the solar charge controller or from the battery to the inverter. These losses are taken into account to calculate better suited inverter limits.",

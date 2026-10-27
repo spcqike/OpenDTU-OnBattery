@@ -4,6 +4,7 @@
 #include "WebApi.h"
 #include "WebApi_errors.h"
 #include "defaults.h"
+#include "InverterControlOwnership.h"
 #include "modbus/ModbusServer.h"
 #include <AsyncJson.h>
 #include <Hoymiles.h>
@@ -45,6 +46,7 @@ void WebApiModbusServerClass::onMetaData(AsyncWebServerRequest* request)
         obj["serial"] = inv->serialString();
         obj["name"] = String(config.Inverter[i].Name);
         obj["type"] = inv->typeName();
+        obj["dpl_governed"] = InverterControlOwnership::isGovernedByDpl(config, config.Inverter[i].Serial);
     }
 
     WebApi.sendJsonResponse(request, response, __FUNCTION__, __LINE__);
@@ -108,6 +110,8 @@ void WebApiModbusServerClass::onAdminPost(AsyncWebServerRequest* request)
     // anywhere but the last entry would silently hide every entry after
     // it - reject the whole request rather than let that happen.
     std::set<uint8_t> seenUnitIds;
+    bool const serverEnabled = root["enabled"].as<bool>();
+    auto const& currentConfig = Configuration.get();
     for (JsonObject inv : root["inverter"].as<JsonArray>()) {
         if (!inv["serial"].is<const char*>() || !inv["unit_id"].is<uint8_t>()) {
             retMsg["message"] = "Inverter entry is missing a serial or unit ID!";
@@ -120,12 +124,20 @@ void WebApiModbusServerClass::onAdminPost(AsyncWebServerRequest* request)
         const char* serialText = inv["serial"].as<const char*>();
         char* serialEnd = nullptr;
         uint64_t serial = 0;
-        if (isxdigit(static_cast<unsigned char>(serialText[0]))) {
+        if (serialText != nullptr && isxdigit(static_cast<unsigned char>(serialText[0]))) {
             serial = strtoull(serialText, &serialEnd, 16);
         }
-        if (serial == 0 || *serialEnd != '\0') {
+        if (serial == 0 || serialEnd == nullptr || *serialEnd != '\0') {
             retMsg["message"] = "Invalid serial: must be a non-zero hex value!";
             retMsg["code"] = WebApiError::GenericValueMissing;
+            response->setLength();
+            request->send(response);
+            return;
+        }
+
+        if (serverEnabled && InverterControlOwnership::isGovernedByDpl(currentConfig, serial)) {
+            retMsg["message"] = "An inverter cannot be controlled by both Modbus/SunSpec and the Dynamic Power Limiter!";
+            retMsg["code"] = WebApiError::InverterControlConflict;
             response->setLength();
             request->send(response);
             return;

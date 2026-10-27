@@ -11,6 +11,7 @@ export interface PowerLimiterInverterInfo {
     type: string;
     channels: number;
     pdl_supported: boolean;
+    modbus_controlled: boolean;
 }
 
 // meta-data not directly part of the DPL settings,

@@ -100,6 +100,7 @@ enum WebApiError {
 
     ModbusServerBase = 13000,
     ModbusServerDuplicateUnitId,
+    InverterControlConflict,
 
     // OpenDTU-OnBattery-specific
     R48xxVoltageLimitOutOfRange = 1002,
