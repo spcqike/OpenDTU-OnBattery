@@ -133,19 +133,19 @@ void ConfigurationClass::serializePowerMeterUdpVictronConfig(PowerMeterUdpVictro
 
 void ConfigurationClass::serializeBatteryConfig(BatteryConfig const& source, JsonObject& target)
 {
-    target["enabled"] = config.Battery.Enabled;
-    target["provider"] = config.Battery.Provider;
-    target["enable_discharge_current_limit"] = config.Battery.EnableDischargeCurrentLimit;
-    target["discharge_current_limit"] = config.Battery.DischargeCurrentLimit;
-    target["discharge_current_limit_below_soc"] = config.Battery.DischargeCurrentLimitBelowSoc;
-    target["discharge_current_limit_below_voltage"] = config.Battery.DischargeCurrentLimitBelowVoltage;
-    target["use_battery_reported_discharge_current_limit"] = config.Battery.UseBatteryReportedDischargeCurrentLimit;
-    target["enable_charge_current_limit"] = config.Battery.EnableChargeCurrentLimit;
-    target["max_charge_current_limit"] = config.Battery.MaxChargeCurrentLimit;
-    target["min_charge_current_limit"] = config.Battery.MinChargeCurrentLimit;
-    target["charge_current_limit_below_soc"] = config.Battery.ChargeCurrentLimitBelowSoc;
-    target["charge_current_limit_below_voltage"] = config.Battery.ChargeCurrentLimitBelowVoltage;
-    target["use_battery_reported_charge_current_limit"] = config.Battery.UseBatteryReportedChargeCurrentLimit;
+    target["enabled"] = source.Enabled;
+    target["provider"] = source.Provider;
+    target["enable_discharge_current_limit"] = source.EnableDischargeCurrentLimit;
+    target["discharge_current_limit"] = source.DischargeCurrentLimit;
+    target["discharge_current_limit_below_soc"] = source.DischargeCurrentLimitBelowSoc;
+    target["discharge_current_limit_below_voltage"] = source.DischargeCurrentLimitBelowVoltage;
+    target["use_battery_reported_discharge_current_limit"] = source.UseBatteryReportedDischargeCurrentLimit;
+    target["enable_charge_current_limit"] = source.EnableChargeCurrentLimit;
+    target["max_charge_current_limit"] = source.MaxChargeCurrentLimit;
+    target["min_charge_current_limit"] = source.MinChargeCurrentLimit;
+    target["charge_current_limit_below_soc"] = source.ChargeCurrentLimitBelowSoc;
+    target["charge_current_limit_below_voltage"] = source.ChargeCurrentLimitBelowVoltage;
+    target["use_battery_reported_charge_current_limit"] = source.UseBatteryReportedChargeCurrentLimit;
 }
 
 void ConfigurationClass::serializeBatteryZendureConfig(BatteryZendureConfig const& source, JsonObject& target, bool includeCredentials)
@@ -333,6 +333,9 @@ bool ConfigurationClass::write()
     wifi["dhcp"] = config.WiFi.Dhcp;
     wifi["hostname"] = config.WiFi.Hostname;
     wifi["aptimeout"] = config.WiFi.ApTimeout;
+    wifi["rescan_enabled"] = config.WiFi.RescanEnabled;
+    wifi["rescan_interval"] = config.WiFi.RescanInterval;
+    wifi["rescan_threshold"] = config.WiFi.RescanThreshold;
 
     JsonObject mdns = doc["mdns"].to<JsonObject>();
     mdns["enabled"] = config.Mdns.Enabled;
@@ -871,6 +874,9 @@ bool ConfigurationClass::read()
 
     config.WiFi.Dhcp = wifi["dhcp"] | WIFI_DHCP;
     config.WiFi.ApTimeout = wifi["aptimeout"] | ACCESS_POINT_TIMEOUT;
+    config.WiFi.RescanEnabled = wifi["rescan_enabled"] | WIFI_RESCAN_ENABLED;
+    config.WiFi.RescanInterval = wifi["rescan_interval"] | WIFI_RESCAN_INTERVAL;
+    config.WiFi.RescanThreshold = wifi["rescan_threshold"] | WIFI_RESCAN_THRESHOLD;
 
     JsonObject mdns = doc["mdns"];
     config.Mdns.Enabled = mdns["enabled"] | MDNS_ENABLED;
@@ -980,7 +986,11 @@ bool ConfigurationClass::read()
     for (uint8_t i = 0; i < LOG_MODULE_COUNT; i++) {
         JsonObject module = modules[i].as<JsonObject>();
         strlcpy(config.Logging.Modules[i].Name, module["name"] | "", sizeof(config.Logging.Modules[i].Name));
-        config.Logging.Modules[i].Level = module["level"] | ESP_LOG_VERBOSE;
+        config.Logging.Modules[i].Level = module["level"] | ESP_LOG_ERROR;
+        if (module["level"].isNull()) {
+            // no level saved: leave the slot empty so the module inherits the default level
+            config.Logging.Modules[i].Name[0] = '\0';
+        }
     }
 
     JsonObject solarcharger = doc["solarcharger"];
@@ -1112,9 +1122,19 @@ void ConfigurationClass::migrate()
     }
 
     if (config.Cfg.Version < 0x00011e00) {
-        config.Logging.Default = ESP_LOG_VERBOSE;
+        // do not enable verbose logging by default: it floods the log buffer,
+        // consumes lots of CPU/heap (esp. on ESP32 without PSRAM) and can make
+        // the web interface and MQTT unresponsive. users can still opt in.
+        config.Logging.Default = ESP_LOG_ERROR;
         strlcpy(config.Logging.Modules[0].Name, "CORE", sizeof(config.Logging.Modules[0].Name));
         config.Logging.Modules[0].Level = ESP_LOG_ERROR;
+    }
+
+    if (config.Cfg.Version < 0x00011f00) {
+        String hostname = String(config.WiFi.Hostname);
+        hostname.replace("%06X", "$id$");
+        hostname.replace("%06x", "$id$");
+        strlcpy(config.WiFi.Hostname, hostname.c_str(), sizeof(config.WiFi.Hostname));
     }
 
     f.close();

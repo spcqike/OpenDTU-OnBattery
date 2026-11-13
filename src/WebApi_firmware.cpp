@@ -10,7 +10,6 @@
 #include <AsyncJson.h>
 #include <Update.h>
 #include "esp_partition.h"
-#include "RuntimeData.h"
 
 void WebApiFirmwareClass::init(AsyncWebServer& server, Scheduler& scheduler)
 {
@@ -49,8 +48,6 @@ void WebApiFirmwareClass::onFirmwareUpdateFinish(AsyncWebServerRequest* request)
     response->addHeader(asyncsrv::T_CORS_ACAO, "*");
     request->send(response);
 
-    // write the runtime data to LittleFS, but do not write if last write operation was less than 10 min ago
-    RuntimeData.write(10);
     RestartHelper.triggerRestart();
 }
 
@@ -83,7 +80,11 @@ void WebApiFirmwareClass::onFirmwareUpdateUpload(AsyncWebServerRequest* request,
     // Write chunked data to the free sketch space
     if (len) {
         if (Update.write(data, len) != len) {
-            return request->send(400, asyncsrv::T_text_plain, "OTA could not begin");
+            Update.printError(Serial);
+            // Reset the updater state so that a subsequent upload attempt
+            // can start cleanly instead of failing on the stale error state.
+            Update.abort();
+            return request->send(400, asyncsrv::T_text_plain, "OTA could not write data");
         }
     }
 

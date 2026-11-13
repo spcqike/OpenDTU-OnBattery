@@ -9,7 +9,7 @@
 #include <mutex>
 
 #define CONFIG_FILENAME "/config.json"
-#define CONFIG_VERSION 0x00011e00 // 0.1.30 // make sure to clean all after change
+#define CONFIG_VERSION 0x00011f00 // 0.1.31 // make sure to clean all after change
 #define CONFIG_VERSION_ONBATTERY 8
 
 #define WIFI_MAX_SSID_STRLEN 32
@@ -371,6 +371,9 @@ struct CONFIG_T {
         bool Dhcp;
         char Hostname[WIFI_MAX_HOSTNAME_STRLEN + 1];
         uint32_t ApTimeout;
+        bool RescanEnabled;
+        uint16_t RescanInterval; // minutes
+        uint8_t RescanThreshold; // dB
     } WiFi;
 
     struct {
